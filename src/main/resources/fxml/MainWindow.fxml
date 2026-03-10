@@ -47,14 +47,16 @@
     <!-- Main Content Area -->
     <center>
         <SplitPane dividerPositions="0.2" fx:id="splitPane">
-            <!-- Navigation Tree (Left) -->
-            <VBox spacing="5" style="-fx-padding: 5;">
-                <Label text="Notebooks" style="-fx-font-weight: bold;"/>
-                <TreeView fx:id="navigationTree" VBox.vgrow="ALWAYS" minWidth="150"/>
+            <!-- Navigation (Left) -->
+            <VBox spacing="5" style="-fx-padding: 5;" minWidth="150" prefWidth="250">
+                <Label text="Notebook" style="-fx-font-weight: bold;"/>
+                <ComboBox fx:id="notebookSelector" promptText="Select a notebook..." maxWidth="Infinity"/>
+                <Label text="Chapters" style="-fx-font-weight: bold; -fx-padding: 10 0 0 0;"/>
+                <Accordion fx:id="chapterAccordion" VBox.vgrow="ALWAYS"/>
             </VBox>
 
             <!-- Canvas Editor Area (Right) -->
-            <StackPane fx:id="canvasArea">
+            <StackPane fx:id="canvasArea" minWidth="400">
                 <Label text="Select a page to begin" style="-fx-text-fill: gray;"/>
             </StackPane>
         </SplitPane>

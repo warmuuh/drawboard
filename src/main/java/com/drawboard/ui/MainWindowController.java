@@ -6,9 +6,12 @@ import com.drawboard.domain.Page;
 import com.drawboard.service.NotebookService;
 import com.drawboard.service.PageService;
 import com.drawboard.service.PreferencesService;
+import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +25,8 @@ import java.util.Optional;
 public class MainWindowController {
     private static final Logger log = LoggerFactory.getLogger(MainWindowController.class);
 
-    @FXML private TreeView<TreeItemData> navigationTree;
+    @FXML private ComboBox<NotebookItem> notebookSelector;
+    @FXML private Accordion chapterAccordion;
     @FXML private StackPane canvasArea;
     @FXML private Label statusLabel;
     @FXML private Label pageInfoLabel;
@@ -37,10 +41,11 @@ public class MainWindowController {
     private final PageService pageService;
     private final PreferencesService preferencesService;
 
-    private TreeItem<TreeItemData> selectedNotebookItem;
-    private TreeItem<TreeItemData> selectedChapterItem;
+    private String currentNotebookId;
+    private String currentChapterId;
 
     private CanvasEditorController canvasEditor;
+    private PauseTransition splitPaneSaveDebounce;
 
     public MainWindowController(NotebookService notebookService, PageService pageService, PreferencesService preferencesService) {
         this.notebookService = notebookService;
@@ -53,8 +58,9 @@ public class MainWindowController {
         // Initialize canvas editor
         canvasEditor = new CanvasEditorController(pageService, preferencesService, canvasArea);
 
-        setupNavigationTree();
+        setupNotebookSelector();
         setupToolButtons();
+        setupSplitPane();
         loadNotebooks();
 
         // Restore last opened page
@@ -63,44 +69,59 @@ public class MainWindowController {
         updateStatus("Ready");
     }
 
-    private void restoreLastOpenedPage() {
-        preferencesService.getLastOpenedPage().ifPresent(lastPage -> {
-            log.info("Restoring last opened page: {}/{}/{}", lastPage.notebookId(), lastPage.chapterId(), lastPage.pageId());
+    private void setupSplitPane() {
+        // Restore divider position
+        double savedPosition = preferencesService.getSplitPaneDividerPosition();
+        splitPane.setDividerPositions(savedPosition);
 
-            // Find and select the page in the tree
-            TreeItem<TreeItemData> pageItem = findPageInTree(lastPage.notebookId(), lastPage.chapterId(), lastPage.pageId());
-            if (pageItem != null) {
-                // Expand parents and select
-                expandToItem(pageItem);
-                navigationTree.getSelectionModel().select(pageItem);
-                log.info("Restored last opened page successfully");
-            } else {
-                log.warn("Last opened page not found in navigation tree");
+        // Create debounce timer (500ms delay)
+        splitPaneSaveDebounce = new PauseTransition(Duration.millis(500));
+
+        // Save divider position when changed (debounced)
+        splitPane.getDividers().get(0).positionProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                // Reset the timer each time position changes
+                splitPaneSaveDebounce.stop();
+                splitPaneSaveDebounce.setOnFinished(e -> {
+                    preferencesService.saveSplitPaneDividerPosition(newVal.doubleValue());
+                });
+                splitPaneSaveDebounce.playFromStart();
             }
         });
     }
 
-    private TreeItem<TreeItemData> findPageInTree(String notebookId, String chapterId, String pageId) {
-        for (TreeItem<TreeItemData> notebookItem : navigationTree.getRoot().getChildren()) {
-            if (notebookItem.getValue().id().equals(notebookId)) {
-                for (TreeItem<TreeItemData> chapterItem : notebookItem.getChildren()) {
-                    if (chapterItem.getValue().id().equals(chapterId)) {
-                        for (TreeItem<TreeItemData> pageItem : chapterItem.getChildren()) {
-                            if (pageItem.getValue().id().equals(pageId)) {
-                                return pageItem;
-                            }
-                        }
+    private void restoreLastOpenedPage() {
+        preferencesService.getLastOpenedPage().ifPresent(lastPage -> {
+            log.info("Restoring last opened page: {}/{}/{}", lastPage.notebookId(), lastPage.chapterId(), lastPage.pageId());
+
+            // Select the notebook
+            for (NotebookItem item : notebookSelector.getItems()) {
+                if (item.id().equals(lastPage.notebookId())) {
+                    notebookSelector.setValue(item);
+                    // Find and select the page in the accordion
+                    selectPageInAccordion(lastPage.chapterId(), lastPage.pageId());
+                    log.info("Restored last opened page successfully");
+                    return;
+                }
+            }
+            log.warn("Last opened page not found");
+        });
+    }
+
+    private void selectPageInAccordion(String chapterId, String pageId) {
+        for (TitledPane pane : chapterAccordion.getPanes()) {
+            ChapterPane chapterPane = (ChapterPane) pane.getUserData();
+            if (chapterPane.chapterId().equals(chapterId)) {
+                chapterAccordion.setExpandedPane(pane);
+                // Find and select the page in the ListView
+                ListView<PageItem> pageList = (ListView<PageItem>) pane.getContent();
+                for (PageItem item : pageList.getItems()) {
+                    if (item.id().equals(pageId)) {
+                        pageList.getSelectionModel().select(item);
+                        return;
                     }
                 }
             }
-        }
-        return null;
-    }
-
-    private void expandToItem(TreeItem<TreeItemData> item) {
-        if (item.getParent() != null) {
-            expandToItem(item.getParent());
-            item.getParent().setExpanded(true);
         }
     }
 
@@ -115,167 +136,157 @@ public class MainWindowController {
         btnSelectTool.setSelected(true);
     }
 
-    private void setupNavigationTree() {
-        // Create root item (hidden)
-        TreeItem<TreeItemData> root = new TreeItem<>(new TreeItemData(TreeItemType.ROOT, null, "Root"));
-        root.setExpanded(true);
-        navigationTree.setRoot(root);
-        navigationTree.setShowRoot(false);
-
-        // Setup selection listener
-        navigationTree.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            handleTreeSelection(newVal);
-        });
-
-        // Setup context menu
-        navigationTree.setContextMenu(createContextMenu());
-    }
-
-    private ContextMenu createContextMenu() {
-        ContextMenu contextMenu = new ContextMenu();
-
-        MenuItem newNotebook = new MenuItem("New Notebook");
-        newNotebook.setOnAction(e -> handleNewNotebook());
-
-        MenuItem newChapter = new MenuItem("New Chapter");
-        newChapter.setOnAction(e -> handleNewChapter());
-
-        MenuItem newPage = new MenuItem("New Page");
-        newPage.setOnAction(e -> handleNewPage());
-
-        MenuItem rename = new MenuItem("Rename");
-        rename.setOnAction(e -> handleRename());
-
-        MenuItem delete = new MenuItem("Delete");
-        delete.setOnAction(e -> handleDelete());
-
-        contextMenu.getItems().addAll(newNotebook, newChapter, newPage, new SeparatorMenuItem(), rename, delete);
-
-        // Show/hide menu items based on selection
-        contextMenu.setOnShowing(e -> {
-            TreeItem<TreeItemData> selected = navigationTree.getSelectionModel().getSelectedItem();
-            if (selected == null || selected.getValue().type() == TreeItemType.ROOT) {
-                newNotebook.setVisible(true);
-                newChapter.setVisible(false);
-                newPage.setVisible(false);
-                rename.setVisible(false);
-                delete.setVisible(false);
-            } else if (selected.getValue().type() == TreeItemType.NOTEBOOK) {
-                newNotebook.setVisible(true);
-                newChapter.setVisible(true);
-                newPage.setVisible(false);
-                rename.setVisible(true);
-                delete.setVisible(true);
-            } else if (selected.getValue().type() == TreeItemType.CHAPTER) {
-                newNotebook.setVisible(true);
-                newChapter.setVisible(true);
-                newPage.setVisible(true);
-                rename.setVisible(true);
-                delete.setVisible(true);
-            } else if (selected.getValue().type() == TreeItemType.PAGE) {
-                newNotebook.setVisible(true);
-                newChapter.setVisible(false);
-                newPage.setVisible(true);
-                rename.setVisible(true);
-                delete.setVisible(true);
-            }
-        });
-
-        return contextMenu;
-    }
-
-    private void handleTreeSelection(TreeItem<TreeItemData> selected) {
-        if (selected == null) {
-            btnNewChapter.setDisable(true);
-            btnNewPage.setDisable(true);
-            pageInfoLabel.setText("");
-            return;
-        }
-
-        TreeItemData data = selected.getValue();
-
-        switch (data.type()) {
-            case NOTEBOOK -> {
-                selectedNotebookItem = selected;
-                selectedChapterItem = null;
+    private void setupNotebookSelector() {
+        // Setup notebook selector
+        notebookSelector.setMaxWidth(Double.MAX_VALUE);
+        notebookSelector.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                currentNotebookId = newVal.id();
+                loadChaptersForNotebook(newVal.id());
                 btnNewChapter.setDisable(false);
                 btnNewPage.setDisable(true);
-                pageInfoLabel.setText("Notebook: " + data.name());
-                clearCanvas();
-            }
-            case CHAPTER -> {
-                selectedNotebookItem = selected.getParent();
-                selectedChapterItem = selected;
-                btnNewChapter.setDisable(false);
-                btnNewPage.setDisable(false);
-                pageInfoLabel.setText("Chapter: " + data.name());
-                clearCanvas();
-            }
-            case PAGE -> {
-                selectedChapterItem = selected.getParent();
-                selectedNotebookItem = selectedChapterItem.getParent();
-                btnNewChapter.setDisable(false);
-                btnNewPage.setDisable(false);
-                loadPage(data);
-            }
-            default -> {
+                pageInfoLabel.setText("Notebook: " + newVal.name());
+
+                // Try to restore last opened page for this notebook
+                preferencesService.getLastOpenedPageForNotebook(newVal.id()).ifPresentOrElse(
+                    lastPage -> {
+                        if (lastPage.notebookId().equals(newVal.id())) {
+                            selectPageInAccordion(lastPage.chapterId(), lastPage.pageId());
+                        }
+                    },
+                    this::clearCanvas
+                );
+            } else {
+                currentNotebookId = null;
+                chapterAccordion.getPanes().clear();
                 btnNewChapter.setDisable(true);
                 btnNewPage.setDisable(true);
                 pageInfoLabel.setText("");
+                clearCanvas();
             }
-        }
+        });
+
+        // Prevent closing all accordion panes - keep at least one expanded
+        chapterAccordion.expandedPaneProperty().addListener((obs, oldPane, newPane) -> {
+            if (newPane == null && !chapterAccordion.getPanes().isEmpty()) {
+                // If trying to close the last pane, keep the previous one expanded
+                if (oldPane != null) {
+                    chapterAccordion.setExpandedPane(oldPane);
+                } else {
+                    // If no previous pane, expand the first one
+                    chapterAccordion.setExpandedPane(chapterAccordion.getPanes().get(0));
+                }
+            }
+        });
     }
 
-    private void loadNotebooks() {
-        TreeItem<TreeItemData> root = navigationTree.getRoot();
-        root.getChildren().clear();
+    private void loadChaptersForNotebook(String notebookId) {
+        chapterAccordion.getPanes().clear();
 
-        List<Notebook> notebooks = notebookService.getAllNotebooks();
-
-        for (Notebook notebook : notebooks) {
-            TreeItem<TreeItemData> notebookItem = createNotebookItem(notebook);
-            root.getChildren().add(notebookItem);
+        Notebook notebook = notebookService.getNotebook(notebookId);
+        if (notebook == null) {
+            return;
         }
-
-        updateStatus("Loaded " + notebooks.size() + " notebook(s)");
-    }
-
-    private TreeItem<TreeItemData> createNotebookItem(Notebook notebook) {
-        TreeItem<TreeItemData> notebookItem = new TreeItem<>(
-            new TreeItemData(TreeItemType.NOTEBOOK, notebook.id(), notebook.name())
-        );
-        notebookItem.setExpanded(false);
 
         for (Chapter chapter : notebook.chapters()) {
-            TreeItem<TreeItemData> chapterItem = createChapterItem(notebook.id(), chapter);
-            notebookItem.getChildren().add(chapterItem);
+            TitledPane chapterPane = createChapterPane(notebookId, chapter);
+            chapterAccordion.getPanes().add(chapterPane);
         }
 
-        return notebookItem;
+        // Expand the first pane if there are any chapters
+        if (!chapterAccordion.getPanes().isEmpty()) {
+            chapterAccordion.setExpandedPane(chapterAccordion.getPanes().get(0));
+        }
     }
 
-    private TreeItem<TreeItemData> createChapterItem(String notebookId, Chapter chapter) {
-        TreeItem<TreeItemData> chapterItem = new TreeItem<>(
-            new TreeItemData(TreeItemType.CHAPTER, chapter.id(), chapter.name())
-        );
-        chapterItem.setExpanded(false);
+    private TitledPane createChapterPane(String notebookId, Chapter chapter) {
+        TitledPane pane = new TitledPane();
+        pane.setText(chapter.name());
+        pane.setUserData(new ChapterPane(chapter.id()));
 
-        log.debug("Loading chapter {} with {} pageIds", chapter.name(), chapter.pageIds().size());
+        // Create ListView for pages
+        ListView<PageItem> pageList = new ListView<>();
+        pageList.getItems().clear();
 
         for (String pageId : chapter.pageIds()) {
             Page page = pageService.getPage(notebookId, chapter.id(), pageId);
             if (page != null) {
-                TreeItem<TreeItemData> pageItem = new TreeItem<>(
-                    new TreeItemData(TreeItemType.PAGE, page.id(), page.name())
-                );
-                chapterItem.getChildren().add(pageItem);
-                log.debug("Added page: {}", page.name());
-            } else {
-                log.warn("Page not found: {} in chapter {}", pageId, chapter.id());
+                pageList.getItems().add(new PageItem(page.id(), page.name()));
             }
         }
 
-        return chapterItem;
+        // Handle page selection
+        pageList.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                currentChapterId = chapter.id();
+                btnNewPage.setDisable(false);
+                loadPage(notebookId, chapter.id(), newVal);
+            }
+        });
+
+        // Add context menu to page list
+        pageList.setContextMenu(createPageContextMenu(pageList));
+
+        pane.setContent(pageList);
+
+        // Add context menu to chapter pane
+        pane.setContextMenu(createChapterContextMenu(chapter.id()));
+
+        return pane;
+    }
+
+    private ContextMenu createChapterContextMenu(String chapterId) {
+        ContextMenu contextMenu = new ContextMenu();
+
+        MenuItem newPage = new MenuItem("New Page");
+        newPage.setOnAction(e -> {
+            currentChapterId = chapterId;
+            handleNewPage();
+        });
+
+        MenuItem rename = new MenuItem("Rename Chapter");
+        rename.setOnAction(e -> handleRenameChapter(chapterId));
+
+        MenuItem delete = new MenuItem("Delete Chapter");
+        delete.setOnAction(e -> handleDeleteChapter(chapterId));
+
+        contextMenu.getItems().addAll(newPage, new SeparatorMenuItem(), rename, delete);
+        return contextMenu;
+    }
+
+    private ContextMenu createPageContextMenu(ListView<PageItem> pageList) {
+        ContextMenu contextMenu = new ContextMenu();
+
+        MenuItem rename = new MenuItem("Rename Page");
+        rename.setOnAction(e -> {
+            PageItem selected = pageList.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                handleRenamePage(selected.id());
+            }
+        });
+
+        MenuItem delete = new MenuItem("Delete Page");
+        delete.setOnAction(e -> {
+            PageItem selected = pageList.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                handleDeletePage(selected.id(), pageList);
+            }
+        });
+
+        contextMenu.getItems().addAll(rename, delete);
+        return contextMenu;
+    }
+
+    private void loadNotebooks() {
+        notebookSelector.getItems().clear();
+
+        List<Notebook> notebooks = notebookService.getAllNotebooks();
+
+        for (Notebook notebook : notebooks) {
+            notebookSelector.getItems().add(new NotebookItem(notebook.id(), notebook.name()));
+        }
+
+        updateStatus("Loaded " + notebooks.size() + " notebook(s)");
     }
 
     @FXML
@@ -289,9 +300,9 @@ public class MainWindowController {
         result.ifPresent(name -> {
             if (!name.isBlank()) {
                 Notebook notebook = notebookService.createNotebook(name);
-                TreeItem<TreeItemData> notebookItem = createNotebookItem(notebook);
-                navigationTree.getRoot().getChildren().add(notebookItem);
-                navigationTree.getSelectionModel().select(notebookItem);
+                NotebookItem item = new NotebookItem(notebook.id(), notebook.name());
+                notebookSelector.getItems().add(item);
+                notebookSelector.setValue(item);
                 updateStatus("Created notebook: " + name);
             }
         });
@@ -299,7 +310,7 @@ public class MainWindowController {
 
     @FXML
     private void handleNewChapter() {
-        if (selectedNotebookItem == null) {
+        if (currentNotebookId == null) {
             showError("Please select a notebook first");
             return;
         }
@@ -312,12 +323,10 @@ public class MainWindowController {
         Optional<String> result = dialog.showAndWait();
         result.ifPresent(name -> {
             if (!name.isBlank()) {
-                String notebookId = selectedNotebookItem.getValue().id();
-                Chapter chapter = notebookService.createChapter(notebookId, name);
-                TreeItem<TreeItemData> chapterItem = createChapterItem(notebookId, chapter);
-                selectedNotebookItem.getChildren().add(chapterItem);
-                selectedNotebookItem.setExpanded(true);
-                navigationTree.getSelectionModel().select(chapterItem);
+                Chapter chapter = notebookService.createChapter(currentNotebookId, name);
+                TitledPane chapterPane = createChapterPane(currentNotebookId, chapter);
+                chapterAccordion.getPanes().add(chapterPane);
+                chapterAccordion.setExpandedPane(chapterPane);
                 updateStatus("Created chapter: " + name);
             }
         });
@@ -325,7 +334,7 @@ public class MainWindowController {
 
     @FXML
     private void handleNewPage() {
-        if (selectedNotebookItem == null || selectedChapterItem == null) {
+        if (currentNotebookId == null || currentChapterId == null) {
             showError("Please select a chapter first");
             return;
         }
@@ -338,104 +347,156 @@ public class MainWindowController {
         Optional<String> result = dialog.showAndWait();
         result.ifPresent(name -> {
             if (!name.isBlank()) {
-                String notebookId = selectedNotebookItem.getValue().id();
-                String chapterId = selectedChapterItem.getValue().id();
-                Page page = pageService.createPage(notebookId, chapterId, name);
-                TreeItem<TreeItemData> pageItem = new TreeItem<>(
-                    new TreeItemData(TreeItemType.PAGE, page.id(), page.name())
-                );
-                selectedChapterItem.getChildren().add(pageItem);
-                selectedChapterItem.setExpanded(true);
-                navigationTree.getSelectionModel().select(pageItem);
+                Page page = pageService.createPage(currentNotebookId, currentChapterId, name);
+
+                // Find the current chapter pane and add the page to its list
+                for (TitledPane pane : chapterAccordion.getPanes()) {
+                    ChapterPane chapterPane = (ChapterPane) pane.getUserData();
+                    if (chapterPane.chapterId().equals(currentChapterId)) {
+                        ListView<PageItem> pageList = (ListView<PageItem>) pane.getContent();
+                        PageItem pageItem = new PageItem(page.id(), page.name());
+                        pageList.getItems().add(pageItem);
+                        pageList.getSelectionModel().select(pageItem);
+                        break;
+                    }
+                }
+
                 updateStatus("Created page: " + name);
             }
         });
     }
 
-    private void handleRename() {
-        TreeItem<TreeItemData> selected = navigationTree.getSelectionModel().getSelectedItem();
-        if (selected == null) return;
+    private void handleRenameChapter(String chapterId) {
+        if (currentNotebookId == null) return;
 
-        TreeItemData data = selected.getValue();
-        TextInputDialog dialog = new TextInputDialog(data.name());
-        dialog.setTitle("Rename");
-        dialog.setHeaderText("Rename " + data.type().toString().toLowerCase());
-        dialog.setContentText("New name:");
+        // Find the chapter pane
+        for (TitledPane pane : chapterAccordion.getPanes()) {
+            ChapterPane chapterPane = (ChapterPane) pane.getUserData();
+            if (chapterPane.chapterId().equals(chapterId)) {
+                TextInputDialog dialog = new TextInputDialog(pane.getText());
+                dialog.setTitle("Rename Chapter");
+                dialog.setHeaderText("Rename chapter");
+                dialog.setContentText("New name:");
 
-        Optional<String> result = dialog.showAndWait();
-        result.ifPresent(newName -> {
-            if (!newName.isBlank() && !newName.equals(data.name())) {
-                try {
-                    switch (data.type()) {
-                        case NOTEBOOK -> {
-                            notebookService.renameNotebook(data.id(), newName);
-                            selected.setValue(new TreeItemData(TreeItemType.NOTEBOOK, data.id(), newName));
-                        }
-                        case CHAPTER -> {
-                            String notebookId = selected.getParent().getValue().id();
-                            notebookService.renameChapter(notebookId, data.id(), newName);
-                            selected.setValue(new TreeItemData(TreeItemType.CHAPTER, data.id(), newName));
-                        }
-                        case PAGE -> {
-                            String notebookId = selected.getParent().getParent().getValue().id();
-                            String chapterId = selected.getParent().getValue().id();
-                            pageService.renamePage(notebookId, chapterId, data.id(), newName);
-                            selected.setValue(new TreeItemData(TreeItemType.PAGE, data.id(), newName));
+                Optional<String> result = dialog.showAndWait();
+                result.ifPresent(newName -> {
+                    if (!newName.isBlank() && !newName.equals(pane.getText())) {
+                        try {
+                            notebookService.renameChapter(currentNotebookId, chapterId, newName);
+                            pane.setText(newName);
+                            updateStatus("Renamed chapter to: " + newName);
+                        } catch (Exception e) {
+                            log.error("Failed to rename chapter", e);
+                            showError("Failed to rename chapter: " + e.getMessage());
                         }
                     }
-                    updateStatus("Renamed to: " + newName);
-                } catch (Exception e) {
-                    log.error("Failed to rename", e);
-                    showError("Failed to rename: " + e.getMessage());
-                }
+                });
+                break;
             }
-        });
+        }
     }
 
-    private void handleDelete() {
-        TreeItem<TreeItemData> selected = navigationTree.getSelectionModel().getSelectedItem();
-        if (selected == null) return;
+    private void handleDeleteChapter(String chapterId) {
+        if (currentNotebookId == null) return;
 
-        TreeItemData data = selected.getValue();
+        // Find the chapter pane
+        for (TitledPane pane : chapterAccordion.getPanes()) {
+            ChapterPane chapterPane = (ChapterPane) pane.getUserData();
+            if (chapterPane.chapterId().equals(chapterId)) {
+                Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+                alert.setTitle("Confirm Delete");
+                alert.setHeaderText("Delete chapter: " + pane.getText());
+                alert.setContentText("This action cannot be undone. Are you sure?");
+
+                Optional<ButtonType> result = alert.showAndWait();
+                if (result.isPresent() && result.get() == ButtonType.OK) {
+                    try {
+                        notebookService.deleteChapter(currentNotebookId, chapterId);
+                        chapterAccordion.getPanes().remove(pane);
+                        updateStatus("Deleted chapter: " + pane.getText());
+                        clearCanvas();
+                    } catch (Exception e) {
+                        log.error("Failed to delete chapter", e);
+                        showError("Failed to delete chapter: " + e.getMessage());
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    private void handleRenamePage(String pageId) {
+        if (currentNotebookId == null || currentChapterId == null) return;
+
+        // Find the page in the current chapter
+        for (TitledPane pane : chapterAccordion.getPanes()) {
+            ChapterPane chapterPane = (ChapterPane) pane.getUserData();
+            if (chapterPane.chapterId().equals(currentChapterId)) {
+                ListView<PageItem> pageList = (ListView<PageItem>) pane.getContent();
+                for (PageItem item : pageList.getItems()) {
+                    if (item.id().equals(pageId)) {
+                        TextInputDialog dialog = new TextInputDialog(item.name());
+                        dialog.setTitle("Rename Page");
+                        dialog.setHeaderText("Rename page");
+                        dialog.setContentText("New name:");
+
+                        Optional<String> result = dialog.showAndWait();
+                        result.ifPresent(newName -> {
+                            if (!newName.isBlank() && !newName.equals(item.name())) {
+                                try {
+                                    pageService.renamePage(currentNotebookId, currentChapterId, pageId, newName);
+                                    int index = pageList.getItems().indexOf(item);
+                                    pageList.getItems().set(index, new PageItem(pageId, newName));
+                                    updateStatus("Renamed page to: " + newName);
+                                } catch (Exception e) {
+                                    log.error("Failed to rename page", e);
+                                    showError("Failed to rename page: " + e.getMessage());
+                                }
+                            }
+                        });
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    private void handleDeletePage(String pageId, ListView<PageItem> pageList) {
+        if (currentNotebookId == null || currentChapterId == null) return;
+
+        PageItem item = pageList.getItems().stream()
+            .filter(p -> p.id().equals(pageId))
+            .findFirst()
+            .orElse(null);
+
+        if (item == null) return;
+
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.setTitle("Confirm Delete");
-        alert.setHeaderText("Delete " + data.type().toString().toLowerCase() + ": " + data.name());
+        alert.setHeaderText("Delete page: " + item.name());
         alert.setContentText("This action cannot be undone. Are you sure?");
 
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
             try {
-                switch (data.type()) {
-                    case NOTEBOOK -> notebookService.deleteNotebook(data.id());
-                    case CHAPTER -> {
-                        String notebookId = selected.getParent().getValue().id();
-                        notebookService.deleteChapter(notebookId, data.id());
-                    }
-                    case PAGE -> {
-                        String notebookId = selected.getParent().getParent().getValue().id();
-                        String chapterId = selected.getParent().getValue().id();
-                        pageService.deletePage(notebookId, chapterId, data.id());
-                    }
-                }
-                selected.getParent().getChildren().remove(selected);
-                updateStatus("Deleted: " + data.name());
+                pageService.deletePage(currentNotebookId, currentChapterId, pageId);
+                pageList.getItems().remove(item);
+                updateStatus("Deleted page: " + item.name());
+                clearCanvas();
             } catch (Exception e) {
-                log.error("Failed to delete", e);
-                showError("Failed to delete: " + e.getMessage());
+                log.error("Failed to delete page", e);
+                showError("Failed to delete page: " + e.getMessage());
             }
         }
     }
 
-    private void loadPage(TreeItemData pageData) {
-        String notebookId = selectedNotebookItem.getValue().id();
-        String chapterId = selectedChapterItem.getValue().id();
-
-        Page page = pageService.getPage(notebookId, chapterId, pageData.id());
+    private void loadPage(String notebookId, String chapterId, PageItem pageItem) {
+        Page page = pageService.getPage(notebookId, chapterId, pageItem.id());
         if (page != null) {
             pageInfoLabel.setText("Page: " + page.name() + " (" + page.elements().size() + " elements)");
 
             // Load page into canvas editor (it will handle clearing)
-            canvasEditor.loadPage(notebookId, chapterId, pageData.id());
+            canvasEditor.loadPage(notebookId, chapterId, pageItem.id());
         }
     }
 
@@ -496,15 +557,20 @@ public class MainWindowController {
         }
     }
 
-    // Data class for tree items
-    public record TreeItemData(TreeItemType type, String id, String name) {
+    // Data classes for UI items
+    public record NotebookItem(String id, String name) {
         @Override
         public String toString() {
             return name;
         }
     }
 
-    public enum TreeItemType {
-        ROOT, NOTEBOOK, CHAPTER, PAGE
+    public record ChapterPane(String chapterId) {}
+
+    public record PageItem(String id, String name) {
+        @Override
+        public String toString() {
+            return name;
+        }
     }
 }

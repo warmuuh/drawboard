@@ -13,6 +13,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -98,9 +100,20 @@ public class PreferencesService {
 
     public void saveLastOpenedPage(String notebookId, String chapterId, String pageId) {
         LastOpenedPage lastPage = new LastOpenedPage(notebookId, chapterId, pageId, Instant.now());
+
+        // Update the per-notebook map
+        Map<String, LastOpenedPage> perNotebookMap = new HashMap<>(
+            currentPreferences.lastOpenedPagePerNotebook() != null
+                ? currentPreferences.lastOpenedPagePerNotebook()
+                : Map.of()
+        );
+        perNotebookMap.put(notebookId, lastPage);
+
         currentPreferences = new UserPreferences(
             lastPage,
+            Map.copyOf(perNotebookMap),
             currentPreferences.windowState(),
+            currentPreferences.splitPaneDividerPosition(),
             currentPreferences.theme(),
             currentPreferences.canvasSettings()
         );
@@ -112,13 +125,22 @@ public class PreferencesService {
         return Optional.ofNullable(currentPreferences.lastOpenedPage());
     }
 
+    public Optional<LastOpenedPage> getLastOpenedPageForNotebook(String notebookId) {
+        if (currentPreferences.lastOpenedPagePerNotebook() == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(currentPreferences.lastOpenedPagePerNotebook().get(notebookId));
+    }
+
     // ==================== Window State ====================
 
     public void saveWindowState(double x, double y, double width, double height, boolean maximized) {
         WindowState windowState = new WindowState(x, y, width, height, maximized);
         currentPreferences = new UserPreferences(
             currentPreferences.lastOpenedPage(),
+            currentPreferences.lastOpenedPagePerNotebook(),
             windowState,
+            currentPreferences.splitPaneDividerPosition(),
             currentPreferences.theme(),
             currentPreferences.canvasSettings()
         );
@@ -136,7 +158,9 @@ public class PreferencesService {
         CanvasSettings canvasSettings = new CanvasSettings(translateX, translateY, zoom);
         currentPreferences = new UserPreferences(
             currentPreferences.lastOpenedPage(),
+            currentPreferences.lastOpenedPagePerNotebook(),
             currentPreferences.windowState(),
+            currentPreferences.splitPaneDividerPosition(),
             currentPreferences.theme(),
             canvasSettings
         );
@@ -154,7 +178,9 @@ public class PreferencesService {
     public void saveTheme(String theme) {
         currentPreferences = new UserPreferences(
             currentPreferences.lastOpenedPage(),
+            currentPreferences.lastOpenedPagePerNotebook(),
             currentPreferences.windowState(),
+            currentPreferences.splitPaneDividerPosition(),
             theme,
             currentPreferences.canvasSettings()
         );
@@ -165,6 +191,26 @@ public class PreferencesService {
     public String getTheme() {
         String theme = currentPreferences.theme();
         return theme != null ? theme : "system";
+    }
+
+    // ==================== Split Pane ====================
+
+    public void saveSplitPaneDividerPosition(double position) {
+        currentPreferences = new UserPreferences(
+            currentPreferences.lastOpenedPage(),
+            currentPreferences.lastOpenedPagePerNotebook(),
+            currentPreferences.windowState(),
+            position,
+            currentPreferences.theme(),
+            currentPreferences.canvasSettings()
+        );
+        save();
+        log.debug("Saved split pane divider position: {}", position);
+    }
+
+    public double getSplitPaneDividerPosition() {
+        Double position = currentPreferences.splitPaneDividerPosition();
+        return position != null ? position : 0.2;
     }
 
     // ==================== Utility ====================
