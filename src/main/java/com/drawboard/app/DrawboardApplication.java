@@ -2,6 +2,7 @@ package com.drawboard.app;
 
 import com.drawboard.service.NotebookService;
 import com.drawboard.service.PageService;
+import com.drawboard.service.PreferencesService;
 import com.drawboard.ui.MainWindowController;
 import com.drawboard.util.SampleDataGenerator;
 import io.avaje.inject.BeanScope;
@@ -47,11 +48,14 @@ public class DrawboardApplication extends Application {
             sampleDataGenerator.createSampleNotebook();
         }
 
+        // Get PreferencesService
+        PreferencesService preferencesService = beanScope.get(PreferencesService.class);
+
         // Load FXML with controller factory
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/MainWindow.fxml"));
         loader.setControllerFactory(clazz -> {
             if (clazz == MainWindowController.class) {
-                return new MainWindowController(notebookService, pageService);
+                return new MainWindowController(notebookService, pageService, preferencesService);
             }
             throw new IllegalArgumentException("Unexpected controller class: " + clazz);
         });

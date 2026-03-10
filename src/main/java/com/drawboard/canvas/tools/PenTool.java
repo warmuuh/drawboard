@@ -94,21 +94,34 @@ public class PenTool implements Tool {
 
         // Create drawing element
         if (currentPath.size() > 1) {
+            // Calculate actual bounding box of the path
+            double minX = currentPath.stream().mapToDouble(Point::x).min().orElse(0);
+            double minY = currentPath.stream().mapToDouble(Point::y).min().orElse(0);
+
+            // Adjust element position to top-left of bounds
+            double elementX = pathStartX + minX;
+            double elementY = pathStartY + minY;
+
+            // Adjust all points relative to new element position
+            List<Point> adjustedPoints = currentPath.stream()
+                .map(p -> new Point(p.x() - minX, p.y() - minY))
+                .toList();
+
             DrawPath drawPath = new DrawPath(
                 toHexString(currentColor),
                 strokeWidth,
-                new ArrayList<>(currentPath)
+                adjustedPoints
             );
 
             DrawingElement element = new DrawingElement(
                 UUID.randomUUID().toString(),
-                pathStartX,
-                pathStartY,
+                elementX,
+                elementY,
                 List.of(drawPath),
                 1000  // High z-index so drawings appear on top
             );
 
-            log.debug("Created drawing with {} points", currentPath.size());
+            log.debug("Created drawing with {} points at ({}, {})", currentPath.size(), elementX, elementY);
 
             // Notify listener
             if (onDrawingComplete != null) {

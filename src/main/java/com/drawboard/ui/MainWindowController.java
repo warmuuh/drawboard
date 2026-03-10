@@ -5,6 +5,7 @@ import com.drawboard.domain.Notebook;
 import com.drawboard.domain.Page;
 import com.drawboard.service.NotebookService;
 import com.drawboard.service.PageService;
+import com.drawboard.service.PreferencesService;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.StackPane;
@@ -34,26 +35,73 @@ public class MainWindowController {
 
     private final NotebookService notebookService;
     private final PageService pageService;
+    private final PreferencesService preferencesService;
 
     private TreeItem<TreeItemData> selectedNotebookItem;
     private TreeItem<TreeItemData> selectedChapterItem;
 
     private CanvasEditorController canvasEditor;
 
-    public MainWindowController(NotebookService notebookService, PageService pageService) {
+    public MainWindowController(NotebookService notebookService, PageService pageService, PreferencesService preferencesService) {
         this.notebookService = notebookService;
         this.pageService = pageService;
+        this.preferencesService = preferencesService;
     }
 
     @FXML
     public void initialize() {
         // Initialize canvas editor
-        canvasEditor = new CanvasEditorController(pageService, canvasArea);
+        canvasEditor = new CanvasEditorController(pageService, preferencesService, canvasArea);
 
         setupNavigationTree();
         setupToolButtons();
         loadNotebooks();
+
+        // Restore last opened page
+        restoreLastOpenedPage();
+
         updateStatus("Ready");
+    }
+
+    private void restoreLastOpenedPage() {
+        preferencesService.getLastOpenedPage().ifPresent(lastPage -> {
+            log.info("Restoring last opened page: {}/{}/{}", lastPage.notebookId(), lastPage.chapterId(), lastPage.pageId());
+
+            // Find and select the page in the tree
+            TreeItem<TreeItemData> pageItem = findPageInTree(lastPage.notebookId(), lastPage.chapterId(), lastPage.pageId());
+            if (pageItem != null) {
+                // Expand parents and select
+                expandToItem(pageItem);
+                navigationTree.getSelectionModel().select(pageItem);
+                log.info("Restored last opened page successfully");
+            } else {
+                log.warn("Last opened page not found in navigation tree");
+            }
+        });
+    }
+
+    private TreeItem<TreeItemData> findPageInTree(String notebookId, String chapterId, String pageId) {
+        for (TreeItem<TreeItemData> notebookItem : navigationTree.getRoot().getChildren()) {
+            if (notebookItem.getValue().id().equals(notebookId)) {
+                for (TreeItem<TreeItemData> chapterItem : notebookItem.getChildren()) {
+                    if (chapterItem.getValue().id().equals(chapterId)) {
+                        for (TreeItem<TreeItemData> pageItem : chapterItem.getChildren()) {
+                            if (pageItem.getValue().id().equals(pageId)) {
+                                return pageItem;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private void expandToItem(TreeItem<TreeItemData> item) {
+        if (item.getParent() != null) {
+            expandToItem(item.getParent());
+            item.getParent().setExpanded(true);
+        }
     }
 
     private void setupToolButtons() {

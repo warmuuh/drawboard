@@ -3,6 +3,7 @@ package com.drawboard.ui;
 import com.drawboard.canvas.CanvasManager;
 import com.drawboard.domain.Page;
 import com.drawboard.service.PageService;
+import com.drawboard.service.PreferencesService;
 import javafx.scene.layout.Pane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,14 +16,16 @@ public class CanvasEditorController {
     private static final Logger log = LoggerFactory.getLogger(CanvasEditorController.class);
 
     private final PageService pageService;
+    private final PreferencesService preferencesService;
     private final CanvasManager canvasManager;
 
     private String currentNotebookId;
     private String currentChapterId;
     private String currentPageId;
 
-    public CanvasEditorController(PageService pageService, Pane canvasContainer) {
+    public CanvasEditorController(PageService pageService, PreferencesService preferencesService, Pane canvasContainer) {
         this.pageService = pageService;
+        this.preferencesService = preferencesService;
         this.canvasManager = new CanvasManager(canvasContainer);
 
         // Set up listeners for new elements
@@ -76,6 +79,10 @@ public class CanvasEditorController {
         Page page = pageService.getPage(notebookId, chapterId, pageId);
         if (page != null) {
             canvasManager.loadPage(page);
+
+            // Save as last opened page
+            preferencesService.saveLastOpenedPage(notebookId, chapterId, pageId);
+
             log.info("Loaded page: {} with {} elements", page.name(), page.elements().size());
         } else {
             log.warn("Page not found: {}", pageId);

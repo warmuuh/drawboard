@@ -19,6 +19,7 @@ module com.drawboard {
     exports com.drawboard.app;
     exports com.drawboard.domain;
     exports com.drawboard.domain.elements;
+    exports com.drawboard.domain.preferences;
     exports com.drawboard.storage;
     exports com.drawboard.service;
     exports com.drawboard.ui;
@@ -29,6 +30,7 @@ module com.drawboard {
     // Open packages for JSON serialization
     opens com.drawboard.domain to io.avaje.jsonb;
     opens com.drawboard.domain.elements to io.avaje.jsonb;
+    opens com.drawboard.domain.preferences to io.avaje.jsonb;
 
     // Open packages for JavaFX FXML
     opens com.drawboard.ui to javafx.fxml;

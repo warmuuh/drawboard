@@ -31,6 +31,10 @@ public class SelectionTool implements Tool {
 
     private ResizeHandle activeResizeHandle;
 
+    private boolean isPanningCanvas;
+    private double canvasStartTranslateX;
+    private double canvasStartTranslateY;
+
     private java.util.function.BiConsumer<Node, javafx.geometry.Point2D> onElementMoved;
     private java.util.function.Consumer<Node> onElementDeleted;
 
@@ -74,7 +78,16 @@ public class SelectionTool implements Tool {
 
                 log.debug("Selected node at ({}, {})", nodeStartX, nodeStartY);
             } else {
+                // Clicked on empty space - start canvas panning
                 deselectNode();
+                isPanningCanvas = true;
+                dragStartX = event.getX();
+                dragStartY = event.getY();
+                canvasStartTranslateX = elementsPane.getTranslateX();
+                canvasStartTranslateY = elementsPane.getTranslateY();
+
+                canvasContainer.setCursor(Cursor.MOVE);
+                log.debug("Starting canvas pan");
             }
         }
 
@@ -83,28 +96,30 @@ public class SelectionTool implements Tool {
 
     @Override
     public void onMouseDragged(MouseEvent event) {
-        if (selectedNode == null) {
-            return;
-        }
-
         double deltaX = event.getX() - dragStartX;
         double deltaY = event.getY() - dragStartY;
 
-        if (activeResizeHandle != ResizeHandle.NONE) {
-            // Resize the node
-            handleResize(deltaX, deltaY);
-        } else {
-            // Move the selected node
-            double newX = nodeStartX + deltaX;
-            double newY = nodeStartY + deltaY;
+        if (isPanningCanvas) {
+            // Pan the entire canvas
+            elementsPane.setTranslateX(canvasStartTranslateX + deltaX);
+            elementsPane.setTranslateY(canvasStartTranslateY + deltaY);
+        } else if (selectedNode != null) {
+            if (activeResizeHandle != ResizeHandle.NONE) {
+                // Resize the node
+                handleResize(deltaX, deltaY);
+            } else {
+                // Move the selected node
+                double newX = nodeStartX + deltaX;
+                double newY = nodeStartY + deltaY;
 
-            selectedNode.setLayoutX(newX);
-            selectedNode.setLayoutY(newY);
+                selectedNode.setLayoutX(newX);
+                selectedNode.setLayoutY(newY);
+            }
+
+            // Update selection border and handles
+            updateSelectionBorder();
+            updateResizeHandles();
         }
-
-        // Update selection border and handles
-        updateSelectionBorder();
-        updateResizeHandles();
 
         event.consume();
     }
@@ -168,7 +183,11 @@ public class SelectionTool implements Tool {
 
     @Override
     public void onMouseReleased(MouseEvent event) {
-        if (selectedNode != null && (activeResizeHandle != ResizeHandle.NONE ||
+        if (isPanningCanvas) {
+            isPanningCanvas = false;
+            canvasContainer.setCursor(Cursor.DEFAULT);
+            log.debug("Canvas panned to ({}, {})", elementsPane.getTranslateX(), elementsPane.getTranslateY());
+        } else if (selectedNode != null && (activeResizeHandle != ResizeHandle.NONE ||
             (Math.abs(event.getX() - dragStartX) > 1 || Math.abs(event.getY() - dragStartY) > 1))) {
 
             double newX = selectedNode.getLayoutX();
@@ -238,6 +257,12 @@ public class SelectionTool implements Tool {
 
     private Node findNodeAt(double x, double y) {
         // Find the topmost node at the given coordinates
+        // Account for canvas translation
+        double translateX = elementsPane.getTranslateX();
+        double translateY = elementsPane.getTranslateY();
+        double adjustedX = x - translateX;
+        double adjustedY = y - translateY;
+
         // Iterate in reverse order (top to bottom in z-order)
         var children = elementsPane.getChildren();
 
@@ -250,7 +275,7 @@ public class SelectionTool implements Tool {
             }
 
             // Check if point is within node bounds
-            if (node.contains(node.parentToLocal(x, y))) {
+            if (node.contains(node.parentToLocal(adjustedX, adjustedY))) {
                 return node;
             }
         }
@@ -301,6 +326,7 @@ public class SelectionTool implements Tool {
 
         updateSelectionBorder();
         elementsPane.getChildren().add(selectionBorder);
+        selectionBorder.toFront(); // Ensure it's on top
 
         // Create resize handles
         createResizeHandles();
@@ -330,6 +356,7 @@ public class SelectionTool implements Tool {
 
         updateResizeHandles();
         elementsPane.getChildren().add(resizeHandles);
+        resizeHandles.toFront(); // Ensure handles are on top
     }
 
     private Cursor getCursorForHandle(ResizeHandle handle) {
@@ -347,11 +374,13 @@ public class SelectionTool implements Tool {
             return;
         }
 
-        // Position border around selected node
-        selectionBorder.setX(selectedNode.getLayoutX() - 2);
-        selectionBorder.setY(selectedNode.getLayoutY() - 2);
-        selectionBorder.setWidth(selectedNode.getBoundsInParent().getWidth() + 4);
-        selectionBorder.setHeight(selectedNode.getBoundsInParent().getHeight() + 4);
+        // Use bounds in parent which gives us the actual visual position
+        javafx.geometry.Bounds bounds = selectedNode.getBoundsInParent();
+
+        selectionBorder.setX(bounds.getMinX() - 2);
+        selectionBorder.setY(bounds.getMinY() - 2);
+        selectionBorder.setWidth(bounds.getWidth() + 4);
+        selectionBorder.setHeight(bounds.getHeight() + 4);
     }
 
     private void updateResizeHandles() {
@@ -359,10 +388,12 @@ public class SelectionTool implements Tool {
             return;
         }
 
-        double x = selectedNode.getLayoutX();
-        double y = selectedNode.getLayoutY();
-        double width = selectedNode.getBoundsInParent().getWidth();
-        double height = selectedNode.getBoundsInParent().getHeight();
+        // Use bounds in parent for consistency
+        javafx.geometry.Bounds bounds = selectedNode.getBoundsInParent();
+        double x = bounds.getMinX();
+        double y = bounds.getMinY();
+        double width = bounds.getWidth();
+        double height = bounds.getHeight();
         double handleSize = 8;
         double offset = handleSize / 2;
 
@@ -398,6 +429,8 @@ public class SelectionTool implements Tool {
             return ResizeHandle.NONE;
         }
 
+        // Resize handles are positioned in container coordinates (already accounting for translation)
+        // So we can directly test against them
         for (javafx.scene.Node node : resizeHandles.getChildren()) {
             if (node instanceof Rectangle rect && rect.contains(rect.parentToLocal(x, y))) {
                 return (ResizeHandle) rect.getUserData();
