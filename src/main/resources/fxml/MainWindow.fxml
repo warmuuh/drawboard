@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.drawboard.ui.MainWindowController"
+            prefWidth="1200.0" prefHeight="800.0">
+
+    <!-- Menu Bar -->
+    <top>
+        <VBox>
+            <MenuBar>
+                <Menu text="File">
+                    <MenuItem text="New Notebook..." fx:id="menuNewNotebook" onAction="#handleNewNotebook"/>
+                    <SeparatorMenuItem/>
+                    <MenuItem text="Exit" onAction="#handleExit"/>
+                </Menu>
+                <Menu text="Edit">
+                    <MenuItem text="Undo" disable="true"/>
+                    <MenuItem text="Redo" disable="true"/>
+                </Menu>
+                <Menu text="View">
+                    <CheckMenuItem text="Show Toolbar" selected="true" disable="true"/>
+                </Menu>
+                <Menu text="Help">
+                    <MenuItem text="About Drawboard" onAction="#handleAbout"/>
+                </Menu>
+            </MenuBar>
+
+            <!-- Toolbar -->
+            <ToolBar fx:id="toolbar">
+                <Button text="New Notebook" onAction="#handleNewNotebook"/>
+                <Separator orientation="VERTICAL"/>
+                <Button text="New Chapter" fx:id="btnNewChapter" onAction="#handleNewChapter" disable="true"/>
+                <Button text="New Page" fx:id="btnNewPage" onAction="#handleNewPage" disable="true"/>
+                <Separator orientation="VERTICAL"/>
+                <Label text="Tools:" style="-fx-padding: 0 10 0 10;"/>
+                <ToggleButton text="Select" fx:id="btnSelectTool" onAction="#handleSelectTool" selected="true"/>
+                <ToggleButton text="Text" fx:id="btnTextTool" onAction="#handleTextTool"/>
+                <ToggleButton text="Pen" fx:id="btnPenTool" onAction="#handlePenTool"/>
+            </ToolBar>
+        </VBox>
+    </top>
+
+    <!-- Main Content Area -->
+    <center>
+        <SplitPane dividerPositions="0.2" fx:id="splitPane">
+            <!-- Navigation Tree (Left) -->
+            <VBox spacing="5" style="-fx-padding: 5;">
+                <Label text="Notebooks" style="-fx-font-weight: bold;"/>
+                <TreeView fx:id="navigationTree" VBox.vgrow="ALWAYS" minWidth="150"/>
+            </VBox>
+
+            <!-- Canvas Editor Area (Right) -->
+            <StackPane fx:id="canvasArea">
+                <Label text="Select a page to begin" style="-fx-text-fill: gray;"/>
+            </StackPane>
+        </SplitPane>
+    </center>
+
+    <!-- Status Bar -->
+    <bottom>
+        <HBox spacing="10" style="-fx-padding: 5; -fx-background-color: #f0f0f0;">
+            <Label fx:id="statusLabel" text="Ready"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="pageInfoLabel" text=""/>
+        </HBox>
+    </bottom>
+
+</BorderPane>

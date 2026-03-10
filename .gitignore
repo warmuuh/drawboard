@@ -1,0 +1,46 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# Java
+*.class
+*.log
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+replay_pid*
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.classpath
+.project
+.metadata/
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Application data (notebooks stored in user's Documents folder)
+notebooks/
+*.db
+*.db-journal
+
+# JLink output
+jlink-image/

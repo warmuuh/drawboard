@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.drawboard</groupId>
+    <artifactId>drawboard</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>Drawboard</name>
+    <description>A notebook application with free-form canvas pages, supporting text, images, and drawings</description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+        <javafx.version>23.0.1</javafx.version>
+        <avaje.inject.version>10.5</avaje.inject.version>
+        <avaje.jsonb.version>2.3</avaje.jsonb.version>
+    </properties>
+
+    <dependencies>
+        <!-- Avaje Inject for DI -->
+        <dependency>
+            <groupId>io.avaje</groupId>
+            <artifactId>avaje-inject</artifactId>
+            <version>${avaje.inject.version}</version>
+        </dependency>
+
+        <!-- Avaje JsonB for JSON serialization -->
+        <dependency>
+            <groupId>io.avaje</groupId>
+            <artifactId>avaje-jsonb</artifactId>
+            <version>${avaje.jsonb.version}</version>
+        </dependency>
+
+        <!-- JavaFX -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.16</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.5.12</version>
+        </dependency>
+
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.11.4</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Maven Compiler Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <source>25</source>
+                    <target>25</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>io.avaje</groupId>
+                            <artifactId>avaje-inject-generator</artifactId>
+                            <version>${avaje.inject.version}</version>
+                        </path>
+                        <path>
+                            <groupId>io.avaje</groupId>
+                            <artifactId>avaje-jsonb-generator</artifactId>
+                            <version>${avaje.jsonb.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <!-- JavaFX Maven Plugin -->
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.8</version>
+                <configuration>
+                    <mainClass>com.drawboard.app.DrawboardApplication</mainClass>
+                </configuration>
+            </plugin>
+
+            <!-- Maven Surefire for tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
+            </plugin>
+
+            <!-- JLink for creating native runtime images -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jlink-plugin</artifactId>
+                <version>3.2.0</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <launcher>drawboard=com.drawboard.app.DrawboardApplication</launcher>
+                    <compress>2</compress>
+                    <noHeaderFiles>true</noHeaderFiles>
+                    <noManPages>true</noManPages>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
