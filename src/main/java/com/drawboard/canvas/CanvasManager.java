@@ -25,8 +25,8 @@ public class CanvasManager {
     private static final Logger log = LoggerFactory.getLogger(CanvasManager.class);
 
     private final Pane canvasContainer;
-    private final Canvas drawingCanvas;
     private final Pane elementsPane;
+    private final Canvas overlayCanvas;
 
     private final TextElementRenderer textRenderer;
     private final ImageElementRenderer imageRenderer;
@@ -48,26 +48,27 @@ public class CanvasManager {
         this.canvasContainer = canvasContainer;
         this.elementNodes = new HashMap<>();
 
-        // Create drawing canvas (bottom layer)
-        this.drawingCanvas = new Canvas(2000, 2000);
-
-        // Create elements pane (top layer) for text and images
+        // Create elements pane for all elements (text, images, drawings)
         this.elementsPane = new Pane();
         this.elementsPane.setPrefSize(2000, 2000);
 
-        // Stack layers
-        canvasContainer.getChildren().addAll(drawingCanvas, elementsPane);
+        // Create overlay canvas (top layer for active drawing)
+        this.overlayCanvas = new Canvas(2000, 2000);
+        this.overlayCanvas.setMouseTransparent(false);
+
+        // Stack layers: elements pane (back) -> overlay canvas (front)
+        canvasContainer.getChildren().addAll(elementsPane, overlayCanvas);
 
         // Initialize renderers
         this.textRenderer = new TextElementRenderer();
         this.imageRenderer = new ImageElementRenderer();
-        this.drawingRenderer = new DrawingElementRenderer(drawingCanvas.getGraphicsContext2D());
+        this.drawingRenderer = new DrawingElementRenderer();
 
         // Set up text content change listener
         setupTextContentListener();
 
-        // Initialize tool manager
-        this.toolManager = new ToolManager(canvasContainer, drawingCanvas);
+        // Initialize tool manager with overlay canvas for active drawing
+        this.toolManager = new ToolManager(canvasContainer, overlayCanvas);
 
         // Set up tool listeners
         setupToolListeners();
@@ -117,6 +118,10 @@ public class CanvasManager {
         PenTool penTool = (PenTool) toolManager.getTool("Pen");
         if (penTool != null) {
             penTool.setOnDrawingComplete(element -> {
+                // Clear the overlay canvas after completing a drawing
+                overlayCanvas.getGraphicsContext2D().clearRect(0, 0,
+                    overlayCanvas.getWidth(), overlayCanvas.getHeight());
+
                 if (onDrawingElementAdded != null) {
                     onDrawingElementAdded.accept(element);
                 }
@@ -178,8 +183,14 @@ public class CanvasManager {
     }
 
     private void renderDrawingElement(DrawingElement element) {
-        drawingRenderer.render(element);
-        log.debug("Rendered drawing element with {} paths", element.paths().size());
+        javafx.scene.Node node = drawingRenderer.render(element);
+        elementNodes.put(element.id(), node);
+
+        // Add to pane - z-order is determined by insertion order
+        // We rely on loadPage() sorting elements by z-index before rendering
+        elementsPane.getChildren().add(node);
+
+        log.debug("Rendered drawing element with {} paths at z-index {}", element.paths().size(), element.zIndex());
     }
 
     /**
@@ -191,7 +202,51 @@ public class CanvasManager {
             return;
         }
 
-        renderElement(element);
+        // Render the element
+        javafx.scene.Node node = createNodeForElement(element);
+        if (node != null) {
+            elementNodes.put(element.id(), node);
+
+            // Insert at correct z-order position
+            int insertIndex = 0;
+            for (javafx.scene.Node existingNode : elementsPane.getChildren()) {
+                String existingId = findElementIdForNode(existingNode);
+                if (existingId != null) {
+                    CanvasElement existingElement = findElementById(existingId);
+                    if (existingElement != null && existingElement.zIndex() >= element.zIndex()) {
+                        break;
+                    }
+                }
+                insertIndex++;
+            }
+
+            elementsPane.getChildren().add(insertIndex, node);
+            log.debug("Added element at z-index {}, position {}", element.zIndex(), insertIndex);
+        }
+    }
+
+    private javafx.scene.Node createNodeForElement(CanvasElement element) {
+        return switch (element) {
+            case TextElement te -> textRenderer.render(te);
+            case ImageElement ie -> imageRenderer.render(ie);
+            case DrawingElement de -> drawingRenderer.render(de);
+        };
+    }
+
+    private String findElementIdForNode(javafx.scene.Node node) {
+        return elementNodes.entrySet().stream()
+            .filter(e -> e.getValue() == node)
+            .map(java.util.Map.Entry::getKey)
+            .findFirst()
+            .orElse(null);
+    }
+
+    private CanvasElement findElementById(String id) {
+        if (currentPage == null) return null;
+        return currentPage.elements().stream()
+            .filter(e -> e.id().equals(id))
+            .findFirst()
+            .orElse(null);
     }
 
     /**
@@ -207,29 +262,12 @@ public class CanvasManager {
      */
     public void removeElement(String elementId) {
         removeElementNode(elementId);
-        // For drawings, we need to redraw the entire canvas
-        if (currentPage != null) {
-            redrawDrawingCanvas();
-        }
     }
 
     private void removeElementNode(String elementId) {
         javafx.scene.Node node = elementNodes.remove(elementId);
         if (node != null) {
             elementsPane.getChildren().remove(node);
-        }
-    }
-
-    private void redrawDrawingCanvas() {
-        // Clear and redraw all drawing elements
-        drawingCanvas.getGraphicsContext2D().clearRect(0, 0,
-            drawingCanvas.getWidth(), drawingCanvas.getHeight());
-
-        if (currentPage != null) {
-            currentPage.elements().stream()
-                .filter(e -> e instanceof DrawingElement)
-                .map(e -> (DrawingElement) e)
-                .forEach(drawingRenderer::render);
         }
     }
 
@@ -244,8 +282,6 @@ public class CanvasManager {
     private void clearCanvas() {
         elementsPane.getChildren().clear();
         elementNodes.clear();
-        drawingCanvas.getGraphicsContext2D().clearRect(0, 0,
-            drawingCanvas.getWidth(), drawingCanvas.getHeight());
     }
 
     public Page getCurrentPage() {

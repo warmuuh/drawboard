@@ -43,6 +43,7 @@ public class CanvasEditorController {
         canvasManager.setOnDrawingElementAdded(element -> {
             if (currentPageId != null) {
                 pageService.addElement(currentNotebookId, currentChapterId, currentPageId, element);
+                canvasManager.addElement(element);
                 log.info("Added drawing element to page");
             }
         });

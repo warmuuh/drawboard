@@ -105,7 +105,7 @@ public class PenTool implements Tool {
                 pathStartX,
                 pathStartY,
                 List.of(drawPath),
-                0  // TODO: Calculate proper z-index
+                1000  // High z-index so drawings appear on top
             );
 
             log.debug("Created drawing with {} points", currentPath.size());
