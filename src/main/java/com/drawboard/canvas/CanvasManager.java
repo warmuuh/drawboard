@@ -1,6 +1,7 @@
 package com.drawboard.canvas;
 
 import com.drawboard.canvas.tools.PenTool;
+import com.drawboard.canvas.tools.SelectionTool;
 import com.drawboard.canvas.tools.TextTool;
 import com.drawboard.canvas.tools.ToolManager;
 import com.drawboard.domain.Page;
@@ -39,14 +40,18 @@ public class CanvasManager {
 
     private Page currentPage;
 
-    // Listeners for element creation and updates
+    // Listeners for element creation, updates, and deletion
     private Consumer<TextElement> onTextElementAdded;
     private Consumer<DrawingElement> onDrawingElementAdded;
     private Consumer<CanvasElement> onElementUpdated;
+    private Consumer<String> onElementDeleted;
 
     public CanvasManager(Pane canvasContainer) {
         this.canvasContainer = canvasContainer;
         this.elementNodes = new HashMap<>();
+
+        // Make container focusable to receive key events
+        canvasContainer.setFocusTraversable(true);
 
         // Create elements pane for all elements (text, images, drawings)
         this.elementsPane = new Pane();
@@ -68,7 +73,7 @@ public class CanvasManager {
         setupTextContentListener();
 
         // Initialize tool manager with overlay canvas for active drawing
-        this.toolManager = new ToolManager(canvasContainer, overlayCanvas);
+        this.toolManager = new ToolManager(canvasContainer, elementsPane, overlayCanvas);
 
         // Set up tool listeners
         setupToolListeners();
@@ -127,6 +132,68 @@ public class CanvasManager {
                 }
             });
         }
+
+        // Selection tool listener
+        SelectionTool selectionTool = (SelectionTool) toolManager.getTool("Selection");
+        if (selectionTool != null) {
+            selectionTool.setOnElementMoved((node, newPosition) -> {
+                // Find the element ID for this node
+                String elementId = findElementIdForNode(node);
+                if (elementId != null && currentPage != null) {
+                    // Find and update the element
+                    CanvasElement element = findElementById(elementId);
+                    if (element != null) {
+                        CanvasElement updated = updateElementPosition(element, newPosition.getX(), newPosition.getY());
+                        if (onElementUpdated != null) {
+                            onElementUpdated.accept(updated);
+                        }
+                    }
+                }
+            });
+
+            selectionTool.setOnElementDeleted(node -> {
+                // Find the element ID for this node
+                String elementId = findElementIdForNode(node);
+                if (elementId != null) {
+                    // Remove from canvas
+                    removeElement(elementId);
+
+                    // Notify listener to delete from page
+                    if (onElementDeleted != null) {
+                        onElementDeleted.accept(elementId);
+                    }
+
+                    log.info("Deleted element: {}", elementId);
+                }
+            });
+        }
+    }
+
+    private CanvasElement updateElementPosition(CanvasElement element, double newX, double newY) {
+        // Also update size if the node has been resized
+        javafx.scene.Node node = elementNodes.get(element.id());
+
+        return switch (element) {
+            case TextElement te -> {
+                double width = te.width();
+                double height = te.height();
+                if (node instanceof javafx.scene.web.WebView webView) {
+                    width = webView.getPrefWidth();
+                    height = webView.getPrefHeight();
+                }
+                yield new TextElement(te.id(), newX, newY, width, height, te.htmlContent(), te.zIndex());
+            }
+            case ImageElement ie -> {
+                double width = ie.width();
+                double height = ie.height();
+                if (node != null) {
+                    width = node.getBoundsInLocal().getWidth();
+                    height = node.getBoundsInLocal().getHeight();
+                }
+                yield new ImageElement(ie.id(), newX, newY, width, height, ie.filename(), ie.zIndex());
+            }
+            case DrawingElement de -> new DrawingElement(de.id(), newX, newY, de.paths(), de.zIndex());
+        };
     }
 
     /**
@@ -226,11 +293,28 @@ public class CanvasManager {
     }
 
     private javafx.scene.Node createNodeForElement(CanvasElement element) {
-        return switch (element) {
+        javafx.scene.Node node = switch (element) {
             case TextElement te -> textRenderer.render(te);
             case ImageElement ie -> imageRenderer.render(ie);
             case DrawingElement de -> drawingRenderer.render(de);
         };
+
+        // If it's a new text element with empty content, focus it for immediate editing
+        if (element instanceof TextElement te && (te.htmlContent() == null || te.htmlContent().isEmpty())) {
+            if (node instanceof javafx.scene.web.WebView webView) {
+                javafx.application.Platform.runLater(() -> {
+                    webView.requestFocus();
+                    // Focus the contentEditable body
+                    try {
+                        webView.getEngine().executeScript("if (document.body) document.body.focus();");
+                    } catch (Exception e) {
+                        log.debug("Could not focus new text element: {}", e.getMessage());
+                    }
+                });
+            }
+        }
+
+        return node;
     }
 
     private String findElementIdForNode(javafx.scene.Node node) {
@@ -253,8 +337,42 @@ public class CanvasManager {
      * Update an existing element.
      */
     public void updateElement(CanvasElement element) {
-        removeElementNode(element.id());
-        renderElement(element);
+        // Find the existing node
+        javafx.scene.Node node = elementNodes.get(element.id());
+
+        if (node == null) {
+            // Node doesn't exist, render it
+            renderElement(element);
+            return;
+        }
+
+        // Update the node's properties without removing/re-adding it
+        // This preserves z-order
+        switch (element) {
+            case TextElement te -> {
+                // For position changes, just update layout
+                node.setLayoutX(te.x());
+                node.setLayoutY(te.y());
+
+                // For content changes, update WebView content
+                if (node instanceof javafx.scene.web.WebView webView) {
+                    String currentContent = (String) webView.getEngine().executeScript("document.body.innerHTML");
+                    if (currentContent == null || !currentContent.equals(te.htmlContent())) {
+                        webView.getEngine().loadContent(textRenderer.wrapHtmlContent(te.htmlContent()));
+                    }
+                }
+            }
+            case ImageElement ie -> {
+                node.setLayoutX(ie.x());
+                node.setLayoutY(ie.y());
+                // TODO: update image if needed
+            }
+            case DrawingElement de -> {
+                node.setLayoutX(de.x());
+                node.setLayoutY(de.y());
+                // Drawing paths can't be easily updated, might need re-render
+            }
+        }
     }
 
     /**
@@ -306,5 +424,9 @@ public class CanvasManager {
 
     public void setOnElementUpdated(Consumer<CanvasElement> listener) {
         this.onElementUpdated = listener;
+    }
+
+    public void setOnElementDeleted(Consumer<String> listener) {
+        this.onElementDeleted = listener;
     }
 }

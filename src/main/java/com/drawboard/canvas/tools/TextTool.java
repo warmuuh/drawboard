@@ -18,26 +18,67 @@ public class TextTool implements Tool {
     private static final Logger log = LoggerFactory.getLogger(TextTool.class);
 
     private final Pane canvasContainer;
+    private final Pane elementsPane;
     private Consumer<TextElement> onTextElementCreated;
 
     private static final double DEFAULT_WIDTH = 300;
     private static final double DEFAULT_HEIGHT = 100;
 
-    public TextTool(Pane canvasContainer) {
+    public TextTool(Pane canvasContainer, Pane elementsPane) {
         this.canvasContainer = canvasContainer;
+        this.elementsPane = elementsPane;
     }
 
     @Override
     public void onMousePressed(MouseEvent event) {
-        // Create text element at click position
+        // Check if clicking on an existing text element
+        javafx.scene.Node clickedNode = findTextNodeAt(event.getX(), event.getY());
+
+        if (clickedNode instanceof javafx.scene.web.WebView webView) {
+            // Clicking on existing WebView - focus it and fire a new mouse event
+            webView.requestFocus();
+
+            // Calculate position relative to WebView
+            javafx.geometry.Point2D localPoint = webView.sceneToLocal(event.getSceneX(), event.getSceneY());
+
+            // Fire a new mouse event directly to the WebView
+            MouseEvent newEvent = new MouseEvent(
+                MouseEvent.MOUSE_PRESSED,
+                localPoint.getX(),
+                localPoint.getY(),
+                event.getScreenX(),
+                event.getScreenY(),
+                event.getButton(),
+                event.getClickCount(),
+                event.isShiftDown(),
+                event.isControlDown(),
+                event.isAltDown(),
+                event.isMetaDown(),
+                event.isPrimaryButtonDown(),
+                event.isMiddleButtonDown(),
+                event.isSecondaryButtonDown(),
+                event.isSynthesized(),
+                event.isPopupTrigger(),
+                event.isStillSincePress(),
+                event.getPickResult()
+            );
+
+            webView.fireEvent(newEvent);
+
+            log.debug("Fired mouse event to WebView at local ({}, {})", localPoint.getX(), localPoint.getY());
+            event.consume();
+            return;
+        }
+
+        // Create new text element at click position with empty content
         TextElement element = new TextElement(
             UUID.randomUUID().toString(),
             event.getX(),
             event.getY(),
             DEFAULT_WIDTH,
             DEFAULT_HEIGHT,
-            "<p>Type your text here...</p>",
-            0  // TODO: Calculate proper z-index
+            "",
+            0  // Default z-index for text
         );
 
         log.debug("Created text element at ({}, {})", event.getX(), event.getY());
@@ -48,6 +89,24 @@ public class TextTool implements Tool {
         }
 
         event.consume();
+    }
+
+    private javafx.scene.Node findTextNodeAt(double x, double y) {
+        // Find text nodes (WebView) at the given coordinates
+        var children = elementsPane.getChildren();
+
+        for (int i = children.size() - 1; i >= 0; i--) {
+            javafx.scene.Node node = children.get(i);
+
+            // Only interested in WebView nodes (text elements)
+            if (node instanceof javafx.scene.web.WebView) {
+                if (node.contains(node.parentToLocal(x, y))) {
+                    return node;
+                }
+            }
+        }
+
+        return null;
     }
 
     @Override

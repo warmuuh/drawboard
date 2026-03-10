@@ -18,13 +18,13 @@ public class ToolManager {
     private final Map<String, Tool> tools;
     private Tool activeTool;
 
-    public ToolManager(Pane canvasContainer, Canvas drawingCanvas) {
+    public ToolManager(Pane canvasContainer, Pane elementsPane, Canvas drawingCanvas) {
         this.tools = new HashMap<>();
 
         // Register available tools
-        tools.put("Selection", new SelectionTool(canvasContainer));
+        tools.put("Selection", new SelectionTool(canvasContainer, elementsPane));
         tools.put("Pen", new PenTool(canvasContainer, drawingCanvas));
-        tools.put("Text", new TextTool(canvasContainer));
+        tools.put("Text", new TextTool(canvasContainer, elementsPane));
 
         // Set up mouse event handlers
         setupMouseHandlers(canvasContainer);

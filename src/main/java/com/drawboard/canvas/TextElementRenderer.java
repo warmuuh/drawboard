@@ -32,6 +32,12 @@ public class TextElementRenderer {
             if (newDoc != null) {
                 webView.getEngine().executeScript("document.body.contentEditable = 'true';");
 
+                // Disable scrollbars
+                webView.getEngine().executeScript("""
+                    document.body.style.overflow = 'auto';
+                    document.documentElement.style.overflow = 'auto';
+                    """);
+
                 // Listen for focus loss to save changes
                 webView.focusedProperty().addListener((obsFocus, wasFocused, isNowFocused) -> {
                     if (wasFocused && !isNowFocused) {
@@ -47,6 +53,9 @@ public class TextElementRenderer {
 
         // Style to remove default margins
         webView.setStyle("-fx-background-color: transparent;");
+
+        // Intercept parent's mouse events and re-dispatch to WebView
+        webView.setPickOnBounds(false); // Only respond to actual content, not transparent areas
 
         return webView;
     }
@@ -68,7 +77,7 @@ public class TextElementRenderer {
         this.onContentChanged = listener;
     }
 
-    private String wrapHtmlContent(String htmlContent) {
+    public String wrapHtmlContent(String htmlContent) {
         // Wrap content in a complete HTML document with proper styling
         return """
             <!DOCTYPE html>

@@ -55,6 +55,14 @@ public class CanvasEditorController {
                 log.debug("Updated element: {}", element.id());
             }
         });
+
+        // Listen for element deletion
+        canvasManager.setOnElementDeleted(elementId -> {
+            if (currentPageId != null) {
+                pageService.deleteElement(currentNotebookId, currentChapterId, currentPageId, elementId);
+                log.info("Deleted element: {}", elementId);
+            }
+        });
     }
 
     /**
