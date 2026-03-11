@@ -27,6 +27,7 @@ public class ToolManager {
         // Register available tools
         tools.put("Selection", new SelectionTool(canvasContainer, elementsPane));
         tools.put("Pen", new PenTool(canvasContainer, drawingCanvas, elementsPane));
+        tools.put("Highlighter", new HighlighterTool(canvasContainer, drawingCanvas, elementsPane));
         tools.put("Text", new TextTool(canvasContainer, elementsPane));
 
         // Set up mouse event handlers

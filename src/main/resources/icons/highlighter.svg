@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16">
+  <!-- Highlighter body (wider/chunkier than pen) -->
+  <path d="M18 2 L22 6 L9 19 L5 19 L5 15 Z"
+        fill="#FFD700"
+        stroke="#DAA520"
+        stroke-width="0.5"
+        stroke-linejoin="round"/>
+
+  <!-- Highlighter tip (wider/flat) -->
+  <path d="M5 15 L9 19 L4 20 Z"
+        fill="#FF1493"
+        stroke="#C71585"
+        stroke-width="0.5"
+        stroke-linejoin="round"/>
+
+  <!-- Highlighter highlight -->
+  <path d="M18 2 L20 4 L8 16 L6 14 Z"
+        fill="#FFE44D"
+        opacity="0.6"/>
+
+  <!-- Highlighted line (semi-transparent yellow stroke) -->
+  <path d="M4 20 L2 22"
+        stroke="#FFFF00"
+        stroke-width="3"
+        stroke-linecap="round"
+        opacity="0.5"/>
+</svg>

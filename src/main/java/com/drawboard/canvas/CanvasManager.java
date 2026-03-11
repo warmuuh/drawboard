@@ -1,5 +1,6 @@
 package com.drawboard.canvas;
 
+import com.drawboard.canvas.tools.HighlighterTool;
 import com.drawboard.canvas.tools.PenTool;
 import com.drawboard.canvas.tools.SelectionTool;
 import com.drawboard.canvas.tools.TextTool;
@@ -134,6 +135,20 @@ public class CanvasManager {
         PenTool penTool = (PenTool) toolManager.getTool("Pen");
         if (penTool != null) {
             penTool.setOnDrawingComplete(element -> {
+                // Clear the overlay canvas after completing a drawing
+                overlayCanvas.getGraphicsContext2D().clearRect(0, 0,
+                    overlayCanvas.getWidth(), overlayCanvas.getHeight());
+
+                if (onDrawingElementAdded != null) {
+                    onDrawingElementAdded.accept(element);
+                }
+            });
+        }
+
+        // Highlighter tool listener
+        HighlighterTool highlighterTool = (HighlighterTool) toolManager.getTool("Highlighter");
+        if (highlighterTool != null) {
+            highlighterTool.setOnDrawingComplete(element -> {
                 // Clear the overlay canvas after completing a drawing
                 overlayCanvas.getGraphicsContext2D().clearRect(0, 0,
                     overlayCanvas.getWidth(), overlayCanvas.getHeight());

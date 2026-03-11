@@ -48,6 +48,7 @@ public class MainWindowController {
     @FXML private ToggleButton btnSelectTool;
     @FXML private ToggleButton btnTextTool;
     @FXML private ToggleButton btnPenTool;
+    @FXML private ToggleButton btnHighlighterTool;
     @FXML private MenuItem menuDeleteNotebook;
     @FXML private HBox toolSettingsContainer;
 
@@ -208,6 +209,7 @@ public class MainWindowController {
         btnSelectTool.setToggleGroup(toolGroup);
         btnTextTool.setToggleGroup(toolGroup);
         btnPenTool.setToggleGroup(toolGroup);
+        btnHighlighterTool.setToggleGroup(toolGroup);
 
         // Select tool is selected by default
         btnSelectTool.setSelected(true);
@@ -231,10 +233,17 @@ public class MainWindowController {
             btnPenTool.setText(""); // Remove text, show only icon
         }
 
+        javafx.scene.Node highlighterIcon = IconLoader.loadIcon("highlighter");
+        if (highlighterIcon != null) {
+            btnHighlighterTool.setGraphic(highlighterIcon);
+            btnHighlighterTool.setText(""); // Remove text, show only icon
+        }
+
         // Add tooltips to tool buttons
         btnSelectTool.setTooltip(new Tooltip("Select Tool - Select and move elements"));
         btnTextTool.setTooltip(new Tooltip("Text Tool - Click to add text"));
         btnPenTool.setTooltip(new Tooltip("Pen Tool - Draw freehand"));
+        btnHighlighterTool.setTooltip(new Tooltip("Highlighter Tool - Mark text passages"));
     }
 
     private void setupNotebookSelector() {
@@ -894,6 +903,15 @@ public class MainWindowController {
             canvasEditor.setActiveTool("Pen");
             updateToolSettings("Pen");
             updateStatus("Pen tool active - Draw on the canvas");
+        }
+    }
+
+    @FXML
+    private void handleHighlighterTool() {
+        if (canvasEditor != null) {
+            canvasEditor.setActiveTool("Highlighter");
+            updateToolSettings("Highlighter");
+            updateStatus("Highlighter tool active - Mark text passages");
         }
     }
 
