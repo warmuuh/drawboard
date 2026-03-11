@@ -1,8 +1,16 @@
 package com.drawboard.canvas.tools;
 
+import javafx.geometry.Insets;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.Separator;
+import javafx.scene.control.Tooltip;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
+import javafx.scene.layout.CornerRadii;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
@@ -38,15 +46,25 @@ public class SelectionTool extends AbstractTool {
     private java.util.function.BiConsumer<Node, javafx.geometry.Point2D> onElementMoved;
     private java.util.function.Consumer<Node> onElementDeleted;
 
+    private SelectionMode selectionMode = SelectionMode.INTERSECTS;
+    private java.util.List<Node> settingsNodes;
+    private java.util.List<Button> modeButtons;
+
     private enum ResizeHandle {
         NONE, TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT,
         TOP, BOTTOM, LEFT, RIGHT
+    }
+
+    private enum SelectionMode {
+        INTERSECTS,  // Select elements that partially overlap the selection rectangle
+        CONTAINS     // Select only elements fully inside the selection rectangle
     }
 
     public SelectionTool(Pane canvasContainer, Pane elementsPane) {
         super(canvasContainer, elementsPane);
         this.selectedNodes = new java.util.ArrayList<>();
         this.selectionBorders = new java.util.HashMap<>();
+        this.settingsNodes = createSettingsNodes();
     }
 
     @Override
@@ -339,8 +357,13 @@ public class SelectionTool extends AbstractTool {
             // Get node bounds (already in elementsPane coordinates)
             javafx.geometry.Bounds nodeBounds = node.getBoundsInParent();
 
-            // Check if node intersects with selection rectangle
-            if (rectBounds.intersects(nodeBounds)) {
+            // Check selection based on current mode
+            boolean shouldSelect = switch (selectionMode) {
+                case INTERSECTS -> rectBounds.intersects(nodeBounds);
+                case CONTAINS -> rectBounds.contains(nodeBounds);
+            };
+
+            if (shouldSelect) {
                 selectedNodes.add(node);
             }
         }
@@ -640,5 +663,80 @@ public class SelectionTool extends AbstractTool {
 
     public void setOnElementDeleted(java.util.function.Consumer<Node> listener) {
         this.onElementDeleted = listener;
+    }
+
+    @Override
+    public java.util.List<Node> getSettingsNodes() {
+        return settingsNodes;
+    }
+
+    private java.util.List<Node> createSettingsNodes() {
+        java.util.List<Node> nodes = new java.util.ArrayList<>();
+        modeButtons = new java.util.ArrayList<>();
+
+        // Add separator
+        Separator separator = new Separator();
+        separator.setOrientation(javafx.geometry.Orientation.VERTICAL);
+        nodes.add(separator);
+
+        // Add label
+        Label label = new Label("Selection:");
+        label.setStyle("-fx-padding: 0 10 0 10;");
+        nodes.add(label);
+
+        // Create mode buttons
+        Button intersectsButton = createModeButton(SelectionMode.INTERSECTS, "Intersects",
+            "Select elements that partially overlap the selection rectangle");
+        Button containsButton = createModeButton(SelectionMode.CONTAINS, "Contains",
+            "Select only elements fully inside the selection rectangle");
+
+        modeButtons.add(intersectsButton);
+        modeButtons.add(containsButton);
+
+        nodes.add(intersectsButton);
+        nodes.add(containsButton);
+
+        // Select intersects mode by default
+        updateButtonSelection(intersectsButton);
+
+        return nodes;
+    }
+
+    private Button createModeButton(SelectionMode mode, String iconName, String tooltipText) {
+        Button button = new Button();
+        button.setMinSize(24, 24);
+        button.setMaxSize(24, 24);
+        button.setPrefSize(24, 24);
+
+        // Try to load icon
+        Node icon = com.drawboard.ui.IconLoader.loadIcon("selection-" + iconName.toLowerCase());
+        if (icon != null) {
+            button.setGraphic(icon);
+        } else {
+            button.setText(iconName.substring(0, 1)); // Fallback to first letter
+        }
+
+        // Set tooltip
+        button.setTooltip(new Tooltip(tooltipText));
+
+        // Set action
+        button.setOnAction(e -> {
+            selectionMode = mode;
+            updateButtonSelection(button);
+            log.debug("Selection mode changed to: {}", mode);
+        });
+
+        return button;
+    }
+
+    private void updateButtonSelection(Button selectedButton) {
+        // Update all buttons to show selection state
+        for (Button btn : modeButtons) {
+            if (btn == selectedButton) {
+                btn.setStyle("-fx-border-color: #2196F3; -fx-border-width: 2px; -fx-border-radius: 3px;");
+            } else {
+                btn.setStyle("-fx-border-color: #CCCCCC; -fx-border-width: 1px; -fx-border-radius: 3px;");
+            }
+        }
     }
 }

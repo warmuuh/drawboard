@@ -94,6 +94,9 @@ public class MainWindowController {
         // Restore last opened page
         restoreLastOpenedPage();
 
+        // Initialize tool settings for the default selected tool (Selection)
+        updateToolSettings("Selection");
+
         updateStatus("Ready");
     }
 
@@ -114,8 +117,8 @@ public class MainWindowController {
     }
 
     private void setupIcons() {
-        // Set icon for New Notebook button
-        javafx.scene.Node notebookIcon = IconLoader.loadIcon("notebook");
+        // Set icon for New Notebook button (20x20 for better visibility)
+        javafx.scene.Node notebookIcon = IconLoader.loadIcon("notebook", 20, 20);
         if (notebookIcon != null) {
             btnNewNotebook.setGraphic(notebookIcon);
             btnNewNotebook.setText(""); // Remove text, show only icon
@@ -123,7 +126,7 @@ public class MainWindowController {
         }
 
         // Set icon for New Chapter button
-        javafx.scene.Node chapterIcon = IconLoader.loadIcon("chapter");
+        javafx.scene.Node chapterIcon = IconLoader.loadIcon("chapter", 20, 20);
         if (chapterIcon != null) {
             btnNewChapter.setGraphic(chapterIcon);
             btnNewChapter.setText(""); // Remove text, show only icon
@@ -131,7 +134,7 @@ public class MainWindowController {
         }
 
         // Set icon for New Page button
-        javafx.scene.Node pageIcon = IconLoader.loadIcon("page");
+        javafx.scene.Node pageIcon = IconLoader.loadIcon("page", 20, 20);
         if (pageIcon != null) {
             btnNewPage.setGraphic(pageIcon);
             btnNewPage.setText(""); // Remove text, show only icon
@@ -139,7 +142,7 @@ public class MainWindowController {
         }
 
         // Set icon for Search button
-        javafx.scene.Node searchIcon = IconLoader.loadIcon("search");
+        javafx.scene.Node searchIcon = IconLoader.loadIcon("search", 20, 20);
         if (searchIcon != null) {
             btnSearch.setGraphic(searchIcon);
             btnSearch.setText(""); // Remove text, show only icon
@@ -214,26 +217,26 @@ public class MainWindowController {
         // Select tool is selected by default
         btnSelectTool.setSelected(true);
 
-        // Set icons for tool buttons
-        javafx.scene.Node selectIcon = IconLoader.loadIcon("select");
+        // Set icons for tool buttons (20x20 for better visibility in 32x32 buttons)
+        javafx.scene.Node selectIcon = IconLoader.loadIcon("select", 20, 20);
         if (selectIcon != null) {
             btnSelectTool.setGraphic(selectIcon);
             btnSelectTool.setText(""); // Remove text, show only icon
         }
 
-        javafx.scene.Node textIcon = IconLoader.loadIcon("text");
+        javafx.scene.Node textIcon = IconLoader.loadIcon("text", 20, 20);
         if (textIcon != null) {
             btnTextTool.setGraphic(textIcon);
             btnTextTool.setText(""); // Remove text, show only icon
         }
 
-        javafx.scene.Node penIcon = IconLoader.loadIcon("pen");
+        javafx.scene.Node penIcon = IconLoader.loadIcon("pen", 20, 20);
         if (penIcon != null) {
             btnPenTool.setGraphic(penIcon);
             btnPenTool.setText(""); // Remove text, show only icon
         }
 
-        javafx.scene.Node highlighterIcon = IconLoader.loadIcon("highlighter");
+        javafx.scene.Node highlighterIcon = IconLoader.loadIcon("highlighter", 20, 20);
         if (highlighterIcon != null) {
             btnHighlighterTool.setGraphic(highlighterIcon);
             btnHighlighterTool.setText(""); // Remove text, show only icon
