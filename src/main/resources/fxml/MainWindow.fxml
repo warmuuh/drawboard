@@ -36,15 +36,20 @@
 
             <!-- Toolbar -->
             <ToolBar fx:id="toolbar">
-                <Button text="New Notebook" onAction="#handleNewNotebook"/>
-                <Separator orientation="VERTICAL"/>
-                <Button text="New Chapter" fx:id="btnNewChapter" onAction="#handleNewChapter" disable="true"/>
-                <Button text="New Page" fx:id="btnNewPage" onAction="#handleNewPage" disable="true"/>
+                <Button text="New Notebook" fx:id="btnNewNotebook" onAction="#handleNewNotebook"
+                        minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"/>
+                <Button text="New Chapter" fx:id="btnNewChapter" onAction="#handleNewChapter" disable="true"
+                        minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"/>
+                <Button text="New Page" fx:id="btnNewPage" onAction="#handleNewPage" disable="true"
+                        minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"/>
                 <Separator orientation="VERTICAL"/>
                 <Label text="Tools:" style="-fx-padding: 0 10 0 10;"/>
-                <ToggleButton text="Select" fx:id="btnSelectTool" onAction="#handleSelectTool" selected="true"/>
-                <ToggleButton text="Text" fx:id="btnTextTool" onAction="#handleTextTool"/>
-                <ToggleButton text="Pen" fx:id="btnPenTool" onAction="#handlePenTool"/>
+                <ToggleButton text="Select" fx:id="btnSelectTool" onAction="#handleSelectTool" selected="true"
+                              minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"/>
+                <ToggleButton text="Text" fx:id="btnTextTool" onAction="#handleTextTool"
+                              minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"/>
+                <ToggleButton text="Pen" fx:id="btnPenTool" onAction="#handlePenTool"
+                              minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"/>
             </ToolBar>
         </VBox>
     </top>

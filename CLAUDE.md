@@ -12,6 +12,11 @@ Drawboard is a desktop notebook application with free-form canvas pages. Users o
   - Managed via SDKMAN (`.sdkmanrc` file in project root)
   - Run `sdk env` to activate the correct Java version
 - **JavaFX 23**: UI framework
+- **fxsvgimage** (`org.girod.javafx.svgimage`): SVG support for JavaFX
+  - Load SVG files as JavaFX Nodes: `SVGImage img = SVGLoader.load(<SVG file>)` (returns a Group)
+  - Convert JavaFX Nodes to SVG: use `SVGConverter` with `ConverterParameters`
+  - Supports: clip paths, gradients, filters, shapes, paths, images, text, use/symbol, transformations, animations (partial)
+  - Use for icons, vector graphics, and potentially for exporting canvas content to SVG
 - **Avaje Inject**: DI framework (compile-time, annotation-based)
 - **Avaje JsonB**: JSON serialization/deserialization
 - **Maven**: Build tool

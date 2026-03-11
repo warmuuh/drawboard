@@ -36,6 +36,7 @@ public class MainWindowController {
     @FXML private Label pageInfoLabel;
     @FXML private Button btnNewChapter;
     @FXML private Button btnNewPage;
+    @FXML private Button btnNewNotebook;
     @FXML private SplitPane splitPane;
     @FXML private ToggleButton btnSelectTool;
     @FXML private ToggleButton btnTextTool;
@@ -68,6 +69,7 @@ public class MainWindowController {
         // Initialize canvas editor
         canvasEditor = new CanvasEditorController(pageService, preferencesService, canvasArea);
 
+        setupIcons();
         setupNotebookSelector();
         setupToolButtons();
         setupSplitPane();
@@ -77,6 +79,32 @@ public class MainWindowController {
         restoreLastOpenedPage();
 
         updateStatus("Ready");
+    }
+
+    private void setupIcons() {
+        // Set icon for New Notebook button
+        javafx.scene.Node notebookIcon = IconLoader.loadIcon("notebook");
+        if (notebookIcon != null) {
+            btnNewNotebook.setGraphic(notebookIcon);
+            btnNewNotebook.setText(""); // Remove text, show only icon
+            btnNewNotebook.setTooltip(new Tooltip("New Notebook"));
+        }
+
+        // Set icon for New Chapter button
+        javafx.scene.Node chapterIcon = IconLoader.loadIcon("chapter");
+        if (chapterIcon != null) {
+            btnNewChapter.setGraphic(chapterIcon);
+            btnNewChapter.setText(""); // Remove text, show only icon
+            btnNewChapter.setTooltip(new Tooltip("New Chapter"));
+        }
+
+        // Set icon for New Page button
+        javafx.scene.Node pageIcon = IconLoader.loadIcon("page");
+        if (pageIcon != null) {
+            btnNewPage.setGraphic(pageIcon);
+            btnNewPage.setText(""); // Remove text, show only icon
+            btnNewPage.setTooltip(new Tooltip("New Page"));
+        }
     }
 
     private void setupSplitPane() {
@@ -144,6 +172,30 @@ public class MainWindowController {
 
         // Select tool is selected by default
         btnSelectTool.setSelected(true);
+
+        // Set icons for tool buttons
+        javafx.scene.Node selectIcon = IconLoader.loadIcon("select");
+        if (selectIcon != null) {
+            btnSelectTool.setGraphic(selectIcon);
+            btnSelectTool.setText(""); // Remove text, show only icon
+        }
+
+        javafx.scene.Node textIcon = IconLoader.loadIcon("text");
+        if (textIcon != null) {
+            btnTextTool.setGraphic(textIcon);
+            btnTextTool.setText(""); // Remove text, show only icon
+        }
+
+        javafx.scene.Node penIcon = IconLoader.loadIcon("pen");
+        if (penIcon != null) {
+            btnPenTool.setGraphic(penIcon);
+            btnPenTool.setText(""); // Remove text, show only icon
+        }
+
+        // Add tooltips to tool buttons
+        btnSelectTool.setTooltip(new Tooltip("Select Tool - Select and move elements"));
+        btnTextTool.setTooltip(new Tooltip("Text Tool - Click to add text"));
+        btnPenTool.setTooltip(new Tooltip("Pen Tool - Draw freehand"));
     }
 
     private void setupNotebookSelector() {

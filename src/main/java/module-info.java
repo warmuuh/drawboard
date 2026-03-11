@@ -5,6 +5,9 @@ module com.drawboard {
     requires javafx.graphics;
     requires javafx.web;
 
+    // SVG support
+    requires org.girod.javafx.svgimage;
+
     // Avaje modules
     requires io.avaje.inject;
     requires io.avaje.jsonb;
