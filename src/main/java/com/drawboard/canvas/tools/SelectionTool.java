@@ -332,6 +332,17 @@ public class SelectionTool implements Tool {
             }
         });
 
+        // Add background click handler to container for deselecting
+        canvasContainer.setOnMouseClicked(event -> {
+            // Only handle clicks directly on the container (not on child nodes)
+            if (event.getTarget() == canvasContainer) {
+                log.debug("Clicked on canvas background - deselecting all");
+                deselectAllNodes();
+                canvasContainer.requestFocus();
+                event.consume();
+            }
+        });
+
         log.debug("Selection tool activated");
     }
 
@@ -340,6 +351,7 @@ public class SelectionTool implements Tool {
         deselectAllNodes();
         canvasContainer.setCursor(Cursor.DEFAULT);
         canvasContainer.setOnKeyPressed(null); // Remove key handler
+        canvasContainer.setOnMouseClicked(null); // Remove background click handler
 
         log.debug("Selection tool deactivated");
     }
@@ -415,6 +427,15 @@ public class SelectionTool implements Tool {
     }
 
     private void deselectAllNodes() {
+        // Check if we need to remove focus from WebView
+        boolean hadWebView = false;
+        for (Node node : selectedNodes) {
+            if (node instanceof javafx.scene.web.WebView) {
+                hadWebView = true;
+                break;
+            }
+        }
+
         // Remove all selection borders
         for (Rectangle border : selectionBorders.values()) {
             elementsPane.getChildren().remove(border);
@@ -430,6 +451,13 @@ public class SelectionTool implements Tool {
 
         // Clear primary selection
         selectedNode = null;
+
+        // Only request focus if we had a WebView selected (to remove its internal focus)
+        // or if explicitly needed for paste operations
+        if (hadWebView) {
+            canvasContainer.requestFocus();
+            log.debug("Removed focus from WebView");
+        }
     }
 
     @Override
@@ -632,7 +660,7 @@ public class SelectionTool implements Tool {
     }
 
     public void clearSelection() {
-        deselectNode();
+        deselectAllNodes();
     }
 
     public void setOnElementMoved(java.util.function.BiConsumer<Node, javafx.geometry.Point2D> listener) {

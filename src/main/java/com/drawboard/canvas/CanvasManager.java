@@ -296,6 +296,17 @@ public class CanvasManager {
             return;
         }
 
+        // Update currentPage to include the new element
+        java.util.List<CanvasElement> updatedElements = new java.util.ArrayList<>(currentPage.elements());
+        updatedElements.add(element);
+        currentPage = new Page(
+            currentPage.id(),
+            currentPage.name(),
+            currentPage.created(),
+            currentPage.modified(),
+            updatedElements
+        );
+
         // Render the element
         javafx.scene.Node node = createNodeForElement(element);
         if (node != null) {

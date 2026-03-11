@@ -84,6 +84,7 @@ public class MainWindowController {
         setupNotebookSelector();
         setupToolButtons();
         setupSplitPane();
+        setupKeyboardShortcuts();
         loadNotebooks();
 
         // Apply saved background color
@@ -93,6 +94,22 @@ public class MainWindowController {
         restoreLastOpenedPage();
 
         updateStatus("Ready");
+    }
+
+    private void setupKeyboardShortcuts() {
+        // Set up Ctrl+V (Cmd+V on Mac) for paste on canvas area
+        // Note: We add an event filter instead of handler to avoid overwriting
+        // the SelectionTool's DELETE key handler
+        canvasArea.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
+            if (event.isShortcutDown() && event.getCode() == javafx.scene.input.KeyCode.V) {
+                handlePaste();
+                event.consume();
+            }
+            // Let other keys pass through to the tool handlers
+        });
+
+        // Make canvas area focusable so it can receive keyboard events
+        canvasArea.setFocusTraversable(true);
     }
 
     private void setupIcons() {
@@ -703,6 +720,15 @@ public class MainWindowController {
         } catch (Exception e) {
             log.error("Failed to open preferences dialog", e);
             showError("Failed to open preferences: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void handlePaste() {
+        if (canvasEditor != null && canvasEditor.hasPageLoaded()) {
+            canvasEditor.handlePaste();
+        } else {
+            updateStatus("No page loaded - cannot paste");
         }
     }
 

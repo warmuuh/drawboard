@@ -251,6 +251,24 @@ public class FileStorageService {
         }
     }
 
+    public void deleteImage(String notebookId, String chapterId, String pageId,
+                           String filename) {
+        Path imageFile = getPageDirectory(notebookId, chapterId, pageId).resolve(filename);
+
+        if (!Files.exists(imageFile)) {
+            log.warn("Image file not found for deletion: {}", imageFile);
+            return;
+        }
+
+        try {
+            Files.delete(imageFile);
+            log.info("Deleted image: {}", filename);
+        } catch (IOException e) {
+            log.error("Failed to delete image: {}", filename, e);
+            throw new StorageException("Cannot delete image", e);
+        }
+    }
+
     // ==================== Path Helpers ====================
 
     private Path getNotebookDirectory(String notebookId) {

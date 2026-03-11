@@ -199,6 +199,18 @@ public class PageService {
             throw new IllegalArgumentException("Page not found: " + pageId);
         }
 
+        // Find the element to check if it's an image (need to delete the file)
+        CanvasElement elementToDelete = page.elements().stream()
+            .filter(e -> e.id().equals(elementId))
+            .findFirst()
+            .orElse(null);
+
+        // If it's an image element, delete the image file
+        if (elementToDelete instanceof ImageElement imageElement) {
+            storage.deleteImage(notebookId, chapterId, pageId, imageElement.filename());
+            log.info("Deleted image file: {}", imageElement.filename());
+        }
+
         List<CanvasElement> updatedElements = page.elements().stream()
             .filter(e -> !e.id().equals(elementId))
             .toList();

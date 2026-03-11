@@ -26,6 +26,8 @@
                     <MenuItem text="Undo" disable="true"/>
                     <MenuItem text="Redo" disable="true"/>
                     <SeparatorMenuItem/>
+                    <MenuItem text="Paste" onAction="#handlePaste" accelerator="Shortcut+V"/>
+                    <SeparatorMenuItem/>
                     <MenuItem text="Find..." onAction="#handleSearch" accelerator="Shortcut+F"/>
                 </Menu>
                 <Menu text="View">

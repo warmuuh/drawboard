@@ -4,6 +4,10 @@ module com.drawboard {
     requires javafx.fxml;
     requires javafx.graphics;
     requires javafx.web;
+    requires javafx.swing;
+
+    // Java desktop for image handling
+    requires java.desktop;
 
     // SVG support
     requires org.girod.javafx.svgimage;

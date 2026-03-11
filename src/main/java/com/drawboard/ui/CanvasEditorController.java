@@ -2,15 +2,25 @@ package com.drawboard.ui;
 
 import com.drawboard.canvas.CanvasManager;
 import com.drawboard.domain.Page;
+import com.drawboard.domain.elements.ImageElement;
+import com.drawboard.domain.elements.TextElement;
 import com.drawboard.service.PageService;
 import com.drawboard.service.PreferencesService;
+import javafx.embed.swing.SwingFXUtils;
 import javafx.scene.Node;
+import javafx.scene.image.Image;
+import javafx.scene.input.Clipboard;
 import javafx.scene.layout.Pane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Controller for the canvas editor area.
@@ -141,6 +151,113 @@ public class CanvasEditorController {
      */
     public Optional<List<Node>> getCurrentToolSettings() {
         return canvasManager.getToolManager().getActiveToolSettings();
+    }
+
+    /**
+     * Handle paste operation from clipboard.
+     * Supports pasting text and images.
+     */
+    public void handlePaste() {
+        if (currentPageId == null) {
+            log.warn("Cannot paste - no page loaded");
+            return;
+        }
+
+        Clipboard clipboard = Clipboard.getSystemClipboard();
+
+        // Check for image first (higher priority)
+        if (clipboard.hasImage()) {
+            handlePasteImage(clipboard.getImage());
+        } else if (clipboard.hasString()) {
+            handlePasteText(clipboard.getString());
+        } else {
+            log.debug("Clipboard contains no supported content (text or image)");
+        }
+    }
+
+    private void handlePasteText(String text) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
+
+        log.info("Pasting text: {} characters", text.length());
+
+        // Create a text element at the center of the visible area
+        // Default position: center of canvas (can be adjusted)
+        double x = 100;
+        double y = 100;
+        double width = 400;
+        double height = 100;
+
+        // Convert plain text to HTML
+        String htmlContent = "<p>" + text.replace("\n", "<br>") + "</p>";
+
+        String elementId = UUID.randomUUID().toString();
+        TextElement textElement = new TextElement(
+            elementId,
+            x,
+            y,
+            width,
+            height,
+            htmlContent,
+            0  // Default z-index
+        );
+
+        // Add to page and canvas
+        pageService.addElement(currentNotebookId, currentChapterId, currentPageId, textElement);
+        canvasManager.addElement(textElement);
+
+        log.info("Created text element from clipboard paste");
+    }
+
+    private void handlePasteImage(Image image) {
+        if (image == null) {
+            return;
+        }
+
+        log.info("Pasting image: {}x{}", image.getWidth(), image.getHeight());
+
+        try {
+            // Convert JavaFX Image to byte array
+            BufferedImage bufferedImage = SwingFXUtils.fromFXImage(image, null);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(bufferedImage, "png", baos);
+            byte[] imageData = baos.toByteArray();
+
+            // Generate unique filename
+            String filename = "pasted-image-" + UUID.randomUUID() + ".png";
+
+            // Save image to storage
+            pageService.getImageData(currentNotebookId, currentChapterId, currentPageId, filename);
+            canvasManager.getCanvasContainer().getScene().getWindow();
+
+            // Use PageService to add the image
+            double x = 100;
+            double y = 100;
+
+            ImageElement imageElement = pageService.addImage(
+                currentNotebookId,
+                currentChapterId,
+                currentPageId,
+                createTempImageFile(imageData, filename),
+                x,
+                y
+            );
+
+            // Add to canvas
+            canvasManager.addElement(imageElement);
+
+            log.info("Created image element from clipboard paste: {}", filename);
+        } catch (IOException e) {
+            log.error("Failed to paste image from clipboard", e);
+        }
+    }
+
+    private java.io.File createTempImageFile(byte[] imageData, String filename) throws IOException {
+        java.io.File tempFile = java.io.File.createTempFile("drawboard-paste-", ".png");
+        tempFile.deleteOnExit();
+        java.nio.file.Files.write(tempFile.toPath(), imageData);
+        return tempFile;
     }
 
     /**
