@@ -21,6 +21,7 @@ public class SelectionTool implements Tool {
     private Node selectedNode;
     private Rectangle selectionBorder;
     private javafx.scene.Group resizeHandles;
+    private java.util.Map<Node, Rectangle> selectionBorders; // For multi-selection
 
     private double dragStartX;
     private double dragStartY;
@@ -35,6 +36,12 @@ public class SelectionTool implements Tool {
     private double canvasStartTranslateX;
     private double canvasStartTranslateY;
 
+    private boolean isDrawingSelectionRect;
+    private Rectangle selectionRect;
+    private double selectionStartX;
+    private double selectionStartY;
+    private java.util.List<Node> selectedNodes;
+
     private java.util.function.BiConsumer<Node, javafx.geometry.Point2D> onElementMoved;
     private java.util.function.Consumer<Node> onElementDeleted;
 
@@ -46,10 +53,30 @@ public class SelectionTool implements Tool {
     public SelectionTool(Pane canvasContainer, Pane elementsPane) {
         this.canvasContainer = canvasContainer;
         this.elementsPane = elementsPane;
+        this.selectedNodes = new java.util.ArrayList<>();
+        this.selectionBorders = new java.util.HashMap<>();
     }
 
     @Override
     public void onMousePressed(MouseEvent event) {
+        // Middle button for panning (works in all tools)
+        if (event.isMiddleButtonDown()) {
+            isPanningCanvas = true;
+            dragStartX = event.getX();
+            dragStartY = event.getY();
+            canvasStartTranslateX = elementsPane.getTranslateX();
+            canvasStartTranslateY = elementsPane.getTranslateY();
+            canvasContainer.setCursor(Cursor.MOVE);
+            log.debug("Starting canvas pan (middle button)");
+            event.consume();
+            return;
+        }
+
+        // Primary button - selection/resize/drag
+        if (!event.isPrimaryButtonDown()) {
+            return;
+        }
+
         // Check if clicking on a resize handle
         activeResizeHandle = getResizeHandleAt(event.getX(), event.getY());
 
@@ -67,8 +94,18 @@ public class SelectionTool implements Tool {
             // Check if clicking on an existing node
             Node clickedNode = findNodeAt(event.getX(), event.getY());
 
-            if (clickedNode != null && clickedNode != selectionBorder) {
-                selectNode(clickedNode);
+            if (clickedNode != null && clickedNode != selectionRect && !selectionBorders.containsValue(clickedNode)) {
+                // Select single node
+                deselectAllNodes();
+                selectedNodes.add(clickedNode);
+                selectedNode = clickedNode;
+
+                // Show selection border (for single selection, also show handles)
+                showSelectionBorder(clickedNode);
+                createResizeHandles();
+
+                // Request focus so we can receive key events
+                canvasContainer.requestFocus();
 
                 // Start drag
                 dragStartX = event.getX();
@@ -76,18 +113,31 @@ public class SelectionTool implements Tool {
                 nodeStartX = clickedNode.getLayoutX();
                 nodeStartY = clickedNode.getLayoutY();
 
-                log.debug("Selected node at ({}, {})", nodeStartX, nodeStartY);
+                log.debug("Selected {} node(s)", selectedNodes.size());
             } else {
-                // Clicked on empty space - start canvas panning
-                deselectNode();
-                isPanningCanvas = true;
-                dragStartX = event.getX();
-                dragStartY = event.getY();
-                canvasStartTranslateX = elementsPane.getTranslateX();
-                canvasStartTranslateY = elementsPane.getTranslateY();
+                // Clicked on empty space - start selection rectangle
+                deselectAllNodes();
+                isDrawingSelectionRect = true;
 
-                canvasContainer.setCursor(Cursor.MOVE);
-                log.debug("Starting canvas pan");
+                // Adjust for canvas translation
+                double translateX = elementsPane.getTranslateX();
+                double translateY = elementsPane.getTranslateY();
+                selectionStartX = event.getX() - translateX;
+                selectionStartY = event.getY() - translateY;
+
+                // Create selection rectangle
+                selectionRect = new Rectangle();
+                selectionRect.setFill(Color.rgb(33, 150, 243, 0.2)); // Light blue
+                selectionRect.setStroke(Color.rgb(33, 150, 243, 0.8));
+                selectionRect.setStrokeWidth(1);
+                selectionRect.getStrokeDashArray().addAll(5.0, 5.0);
+                selectionRect.setMouseTransparent(true);
+
+                // Add to elements pane so it moves with the canvas
+                elementsPane.getChildren().add(selectionRect);
+
+                log.debug("Starting selection rectangle at ({}, {}) with translate ({}, {})",
+                    selectionStartX, selectionStartY, translateX, translateY);
             }
         }
 
@@ -103,6 +153,23 @@ public class SelectionTool implements Tool {
             // Pan the entire canvas
             elementsPane.setTranslateX(canvasStartTranslateX + deltaX);
             elementsPane.setTranslateY(canvasStartTranslateY + deltaY);
+        } else if (isDrawingSelectionRect) {
+            // Update selection rectangle
+            // Adjust current position for canvas translation
+            double translateX = elementsPane.getTranslateX();
+            double translateY = elementsPane.getTranslateY();
+            double currentX = event.getX() - translateX;
+            double currentY = event.getY() - translateY;
+
+            double x = Math.min(selectionStartX, currentX);
+            double y = Math.min(selectionStartY, currentY);
+            double width = Math.abs(currentX - selectionStartX);
+            double height = Math.abs(currentY - selectionStartY);
+
+            selectionRect.setX(x);
+            selectionRect.setY(y);
+            selectionRect.setWidth(width);
+            selectionRect.setHeight(height);
         } else if (selectedNode != null) {
             if (activeResizeHandle != ResizeHandle.NONE) {
                 // Resize the node
@@ -117,7 +184,9 @@ public class SelectionTool implements Tool {
             }
 
             // Update selection border and handles
-            updateSelectionBorder();
+            if (selectionBorders.containsKey(selectedNode)) {
+                updateSelectionBorderForNode(selectedNode);
+            }
             updateResizeHandles();
         }
 
@@ -187,6 +256,16 @@ public class SelectionTool implements Tool {
             isPanningCanvas = false;
             canvasContainer.setCursor(Cursor.DEFAULT);
             log.debug("Canvas panned to ({}, {})", elementsPane.getTranslateX(), elementsPane.getTranslateY());
+        } else if (isDrawingSelectionRect) {
+            // Complete selection - find all nodes within rectangle
+            isDrawingSelectionRect = false;
+            selectNodesInRectangle(selectionRect.getBoundsInParent());
+
+            // Remove the selection rectangle
+            elementsPane.getChildren().remove(selectionRect);
+            selectionRect = null;
+
+            log.debug("Selection complete: {} nodes selected", selectedNodes.size());
         } else if (selectedNode != null && (activeResizeHandle != ResizeHandle.NONE ||
             (Math.abs(event.getX() - dragStartX) > 1 || Math.abs(event.getY() - dragStartY) > 1))) {
 
@@ -223,17 +302,22 @@ public class SelectionTool implements Tool {
 
         // Set up key handler for deletion
         canvasContainer.setOnKeyPressed(event -> {
-            if (selectedNode != null &&
+            log.debug("Key pressed: {}, selectedNodes: {}", event.getCode(), selectedNodes.size());
+            if (!selectedNodes.isEmpty() &&
                 (event.getCode() == javafx.scene.input.KeyCode.DELETE ||
                  event.getCode() == javafx.scene.input.KeyCode.BACK_SPACE)) {
 
-                // Notify listener to delete the element
+                log.debug("Deleting {} selected node(s)", selectedNodes.size());
+
+                // Delete all selected nodes
                 if (onElementDeleted != null) {
-                    onElementDeleted.accept(selectedNode);
+                    for (Node node : new java.util.ArrayList<>(selectedNodes)) {
+                        onElementDeleted.accept(node);
+                    }
                 }
 
                 // Deselect after deletion
-                deselectNode();
+                deselectAllNodes();
 
                 event.consume();
             }
@@ -244,10 +328,99 @@ public class SelectionTool implements Tool {
 
     @Override
     public void deactivate() {
-        deselectNode();
+        deselectAllNodes();
         canvasContainer.setCursor(Cursor.DEFAULT);
         canvasContainer.setOnKeyPressed(null); // Remove key handler
+
         log.debug("Selection tool deactivated");
+    }
+
+    private void selectNodesInRectangle(javafx.geometry.Bounds rectBounds) {
+        deselectAllNodes();
+
+        for (Node node : elementsPane.getChildren()) {
+            // Skip selection visual elements and borders
+            if (selectionBorders.containsValue(node) || node == selectionRect) {
+                continue;
+            }
+
+            // Get node bounds (already in elementsPane coordinates)
+            javafx.geometry.Bounds nodeBounds = node.getBoundsInParent();
+
+            // Check if node intersects with selection rectangle
+            if (rectBounds.intersects(nodeBounds)) {
+                selectedNodes.add(node);
+            }
+        }
+
+        // Show selection borders for all selected nodes
+        for (Node node : selectedNodes) {
+            showSelectionBorder(node);
+        }
+
+        // If single node selected, show resize handles
+        if (selectedNodes.size() == 1) {
+            selectedNode = selectedNodes.get(0);
+            createResizeHandles();
+        } else if (!selectedNodes.isEmpty()) {
+            // Multiple nodes - set primary but don't show handles
+            selectedNode = selectedNodes.get(0);
+        }
+
+        // Request focus so we can receive key events
+        if (!selectedNodes.isEmpty()) {
+            canvasContainer.requestFocus();
+            log.debug("Selected {} node(s)", selectedNodes.size());
+        }
+    }
+
+    private void showSelectionBorder(Node node) {
+        Rectangle border = new Rectangle();
+        border.setFill(Color.TRANSPARENT);
+        border.setStroke(Color.DODGERBLUE);
+        border.setStrokeWidth(2);
+        border.getStrokeDashArray().addAll(5.0, 5.0);
+        border.setMouseTransparent(true);
+
+        javafx.geometry.Bounds bounds = node.getBoundsInParent();
+        border.setX(bounds.getMinX() - 2);
+        border.setY(bounds.getMinY() - 2);
+        border.setWidth(bounds.getWidth() + 4);
+        border.setHeight(bounds.getHeight() + 4);
+
+        elementsPane.getChildren().add(border);
+        selectionBorders.put(node, border);
+    }
+
+    private void updateSelectionBorderForNode(Node node) {
+        Rectangle border = selectionBorders.get(node);
+        if (border == null) {
+            return;
+        }
+
+        javafx.geometry.Bounds bounds = node.getBoundsInParent();
+        border.setX(bounds.getMinX() - 2);
+        border.setY(bounds.getMinY() - 2);
+        border.setWidth(bounds.getWidth() + 4);
+        border.setHeight(bounds.getHeight() + 4);
+    }
+
+    private void deselectAllNodes() {
+        // Remove all selection borders
+        for (Rectangle border : selectionBorders.values()) {
+            elementsPane.getChildren().remove(border);
+        }
+        selectionBorders.clear();
+        selectedNodes.clear();
+
+        // Remove resize handles
+        if (resizeHandles != null) {
+            elementsPane.getChildren().remove(resizeHandles);
+            resizeHandles = null;
+        }
+
+        // Clear primary selection
+        selectedNode = null;
     }
 
     @Override
@@ -271,6 +444,11 @@ public class SelectionTool implements Tool {
 
             // Skip the selection border itself
             if (node == selectionBorder) {
+                continue;
+            }
+
+            // Skip mouse-transparent nodes (they shouldn't be selectable)
+            if (node.isMouseTransparent()) {
                 continue;
             }
 

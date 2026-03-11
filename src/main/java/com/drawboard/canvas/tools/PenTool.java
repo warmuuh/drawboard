@@ -46,6 +46,12 @@ public class PenTool implements Tool {
     private double lastX;
     private double lastY;
 
+    private boolean isPanning;
+    private double panStartX;
+    private double panStartY;
+    private double panStartTranslateX;
+    private double panStartTranslateY;
+
     private Consumer<DrawingElement> onDrawingComplete;
     private List<Node> settingsNodes;
     private List<Button> colorButtons;
@@ -60,6 +66,24 @@ public class PenTool implements Tool {
 
     @Override
     public void onMousePressed(MouseEvent event) {
+        // Middle button for panning
+        if (event.isMiddleButtonDown()) {
+            isPanning = true;
+            panStartX = event.getX();
+            panStartY = event.getY();
+            panStartTranslateX = elementsPane.getTranslateX();
+            panStartTranslateY = elementsPane.getTranslateY();
+            canvasContainer.setCursor(Cursor.MOVE);
+            log.debug("Starting pan (middle button) in Pen tool");
+            event.consume();
+            return;
+        }
+
+        // Only handle primary button (left click) for drawing
+        if (!event.isPrimaryButtonDown()) {
+            return;
+        }
+
         isDrawing = true;
         currentPath = new ArrayList<>();
 
@@ -87,6 +111,16 @@ public class PenTool implements Tool {
 
     @Override
     public void onMouseDragged(MouseEvent event) {
+        if (isPanning) {
+            // Pan the canvas
+            double deltaX = event.getX() - panStartX;
+            double deltaY = event.getY() - panStartY;
+            elementsPane.setTranslateX(panStartTranslateX + deltaX);
+            elementsPane.setTranslateY(panStartTranslateY + deltaY);
+            event.consume();
+            return;
+        }
+
         if (!isDrawing) {
             return;
         }
@@ -111,6 +145,14 @@ public class PenTool implements Tool {
 
     @Override
     public void onMouseReleased(MouseEvent event) {
+        if (isPanning) {
+            isPanning = false;
+            canvasContainer.setCursor(Cursor.CROSSHAIR);
+            log.debug("Pan complete in Pen tool");
+            event.consume();
+            return;
+        }
+
         if (!isDrawing) {
             return;
         }
@@ -124,8 +166,11 @@ public class PenTool implements Tool {
             double minY = currentPath.stream().mapToDouble(Point::y).min().orElse(0);
 
             // Adjust element position to top-left of bounds
-            double elementX = pathStartX + minX;
-            double elementY = pathStartY + minY;
+            // Account for elementsPane translation (pan offset)
+            double translateX = elementsPane.getTranslateX();
+            double translateY = elementsPane.getTranslateY();
+            double elementX = pathStartX + minX - translateX;
+            double elementY = pathStartY + minY - translateY;
 
             // Adjust all points relative to new element position
             List<Point> adjustedPoints = currentPath.stream()
@@ -146,7 +191,8 @@ public class PenTool implements Tool {
                 1000  // High z-index so drawings appear on top
             );
 
-            log.debug("Created drawing with {} points at ({}, {})", currentPath.size(), elementX, elementY);
+            log.debug("Created drawing with {} points at ({}, {}) with translate ({}, {})",
+                currentPath.size(), elementX, elementY, translateX, translateY);
 
             // Notify listener
             if (onDrawingComplete != null) {
