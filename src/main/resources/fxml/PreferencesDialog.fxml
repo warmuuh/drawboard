@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      spacing="15" prefWidth="400" prefHeight="300"
+      style="-fx-padding: 20;">
+
+    <Label text="Preferences" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
+
+    <Separator/>
+
+    <!-- Canvas Background Color -->
+    <VBox spacing="8">
+        <Label text="Canvas Background Color" style="-fx-font-weight: bold;"/>
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <ColorPicker fx:id="backgroundColorPicker" prefWidth="150"/>
+            <Label text="The background color of the canvas and text elements"/>
+        </HBox>
+    </VBox>
+
+    <Region VBox.vgrow="ALWAYS"/>
+
+    <!-- Buttons -->
+    <HBox spacing="10" alignment="CENTER_RIGHT">
+        <Button text="Cancel" onAction="#handleCancel" prefWidth="80"/>
+        <Button text="Apply" onAction="#handleApply" defaultButton="true" prefWidth="80"/>
+    </HBox>
+
+</VBox>

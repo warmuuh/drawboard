@@ -155,7 +155,8 @@ public class PreferencesService {
     // ==================== Canvas Settings ====================
 
     public void saveCanvasSettings(double translateX, double translateY, double zoom) {
-        CanvasSettings canvasSettings = new CanvasSettings(translateX, translateY, zoom);
+        CanvasSettings current = getCanvasSettings();
+        CanvasSettings canvasSettings = new CanvasSettings(translateX, translateY, zoom, current.backgroundColor());
         currentPreferences = new UserPreferences(
             currentPreferences.lastOpenedPage(),
             currentPreferences.lastOpenedPagePerNotebook(),
@@ -168,9 +169,33 @@ public class PreferencesService {
         log.debug("Saved canvas settings: translate({}, {}), zoom={}", translateX, translateY, zoom);
     }
 
+    public void saveBackgroundColor(String backgroundColor) {
+        CanvasSettings current = getCanvasSettings();
+        CanvasSettings canvasSettings = new CanvasSettings(
+            current.translateX(),
+            current.translateY(),
+            current.zoom(),
+            backgroundColor
+        );
+        currentPreferences = new UserPreferences(
+            currentPreferences.lastOpenedPage(),
+            currentPreferences.lastOpenedPagePerNotebook(),
+            currentPreferences.windowState(),
+            currentPreferences.splitPaneDividerPosition(),
+            currentPreferences.theme(),
+            canvasSettings
+        );
+        save();
+        log.info("Saved background color: {}", backgroundColor);
+    }
+
     public CanvasSettings getCanvasSettings() {
         CanvasSettings settings = currentPreferences.canvasSettings();
         return settings != null ? settings : CanvasSettings.defaults();
+    }
+
+    public String getBackgroundColor() {
+        return getCanvasSettings().backgroundColor();
     }
 
     // ==================== Theme ====================

@@ -9,11 +9,14 @@ import com.drawboard.service.PageService;
 import com.drawboard.service.PreferencesService;
 import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +36,7 @@ public class MainWindowController {
     @FXML private ComboBox<NotebookItem> notebookSelector;
     @FXML private Accordion chapterAccordion;
     @FXML private StackPane canvasArea;
+    @FXML private Label placeholderLabel;
     @FXML private Label statusLabel;
     @FXML private Label pageInfoLabel;
     @FXML private Button btnNewChapter;
@@ -76,6 +80,9 @@ public class MainWindowController {
         setupToolButtons();
         setupSplitPane();
         loadNotebooks();
+
+        // Apply saved background color
+        applyBackgroundColor(preferencesService.getBackgroundColor());
 
         // Restore last opened page
         restoreLastOpenedPage();
@@ -282,6 +289,10 @@ public class MainWindowController {
                 } finally {
                     isCollapsingPanes = false;
                 }
+            } else if (!isExpanded) {
+                // Clear selection when chapter is collapsed to avoid stale selection
+                ListView<PageItem> pageList = (ListView<PageItem>) pane.getContent();
+                pageList.getSelectionModel().clearSelection();
             }
         });
 
@@ -612,12 +623,27 @@ public class MainWindowController {
 
             // Load page into canvas editor (it will handle clearing)
             canvasEditor.loadPage(notebookId, chapterId, pageItem.id());
+
+            // Hide placeholder when page is loaded
+            placeholderLabel.setVisible(false);
         }
     }
 
     private void clearCanvas() {
         if (canvasEditor != null) {
             canvasEditor.clear();
+            // Show placeholder when canvas is cleared
+            placeholderLabel.setVisible(true);
+        }
+    }
+
+    private void applyBackgroundColor(String backgroundColor) {
+        // Apply to canvas area
+        canvasArea.setStyle("-fx-background-color: " + backgroundColor + ";");
+
+        // Notify canvas editor to update text element backgrounds
+        if (canvasEditor != null) {
+            canvasEditor.setBackgroundColor(backgroundColor);
         }
     }
 
@@ -634,6 +660,37 @@ public class MainWindowController {
         alert.setContentText("A notebook application with free-form canvas pages.\n\n" +
                            "Built with Java 25 and JavaFX 23");
         alert.showAndWait();
+    }
+
+    @FXML
+    private void handlePreferences() {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/PreferencesDialog.fxml"));
+
+            // Create controller with dependencies
+            PreferencesDialogController controller = new PreferencesDialogController(preferencesService);
+            loader.setController(controller);
+
+            Parent root = loader.load();
+
+            Stage dialogStage = new Stage();
+            dialogStage.setTitle("Preferences");
+            dialogStage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+            dialogStage.initOwner(statusLabel.getScene().getWindow());
+            dialogStage.setScene(new javafx.scene.Scene(root));
+            dialogStage.setResizable(false);
+
+            controller.setDialogStage(dialogStage);
+            controller.setOnApply(backgroundColor -> {
+                // Apply the new background color to the canvas
+                applyBackgroundColor(backgroundColor);
+            });
+
+            dialogStage.showAndWait();
+        } catch (Exception e) {
+            log.error("Failed to open preferences dialog", e);
+            showError("Failed to open preferences: " + e.getMessage());
+        }
     }
 
     @FXML

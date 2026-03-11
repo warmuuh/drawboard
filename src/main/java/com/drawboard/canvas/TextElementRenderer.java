@@ -13,6 +13,7 @@ import java.util.function.BiConsumer;
 public class TextElementRenderer {
 
     private BiConsumer<String, String> onContentChanged;
+    private String backgroundColor = "#FFFACD"; // Default light yellow
 
     public Node render(TextElement element) {
         WebView webView = new WebView();
@@ -51,8 +52,8 @@ public class TextElementRenderer {
         // Enable context menu for text operations
         webView.setContextMenuEnabled(true);
 
-        // Style to remove default margins
-        webView.setStyle("-fx-background-color: transparent;");
+        // Set WebView background to match canvas background
+        webView.setStyle("-fx-background-color: " + backgroundColor + ";");
 
         // Intercept parent's mouse events and re-dispatch to WebView
         webView.setPickOnBounds(false); // Only respond to actual content, not transparent areas
@@ -77,6 +78,10 @@ public class TextElementRenderer {
         this.onContentChanged = listener;
     }
 
+    public void setBackgroundColor(String backgroundColor) {
+        this.backgroundColor = backgroundColor;
+    }
+
     public String wrapHtmlContent(String htmlContent) {
         // Wrap content in a complete HTML document with proper styling
         return """
@@ -84,12 +89,13 @@ public class TextElementRenderer {
             <html>
             <head>
                 <style>
-                    body {
+                    html, body {
                         margin: 0;
                         padding: 8px;
                         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                         font-size: 14px;
                         color: #333;
+                        background: %s;
                     }
                     p { margin: 0 0 8px 0; }
                     h1 { font-size: 24px; margin: 0 0 12px 0; }
@@ -101,6 +107,6 @@ public class TextElementRenderer {
                 %s
             </body>
             </html>
-            """.formatted(htmlContent);
+            """.formatted(backgroundColor, htmlContent);
     }
 }

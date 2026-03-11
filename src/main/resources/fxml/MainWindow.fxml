@@ -28,6 +28,8 @@
                 </Menu>
                 <Menu text="View">
                     <CheckMenuItem text="Show Toolbar" selected="true" disable="true"/>
+                    <SeparatorMenuItem/>
+                    <MenuItem text="Preferences..." onAction="#handlePreferences"/>
                 </Menu>
                 <Menu text="Help">
                     <MenuItem text="About Drawboard" onAction="#handleAbout"/>
@@ -71,7 +73,7 @@
 
             <!-- Canvas Editor Area (Right) -->
             <StackPane fx:id="canvasArea" minWidth="400">
-                <Label text="Select a page to begin" style="-fx-text-fill: gray;"/>
+                <Label fx:id="placeholderLabel" text="Select a page to begin" style="-fx-text-fill: gray;"/>
             </StackPane>
         </SplitPane>
     </center>

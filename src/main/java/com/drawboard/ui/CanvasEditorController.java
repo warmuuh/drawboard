@@ -26,6 +26,7 @@ public class CanvasEditorController {
     private String currentNotebookId;
     private String currentChapterId;
     private String currentPageId;
+    private String backgroundColor;
 
     public CanvasEditorController(PageService pageService, PreferencesService preferencesService, Pane canvasContainer) {
         this.pageService = pageService;
@@ -34,6 +35,9 @@ public class CanvasEditorController {
 
         // Set up listeners for new elements
         setupElementListeners();
+
+        // Set up image data loader
+        setupImageDataLoader();
     }
 
     private void setupElementListeners() {
@@ -69,6 +73,15 @@ public class CanvasEditorController {
                 pageService.deleteElement(currentNotebookId, currentChapterId, currentPageId, elementId);
                 log.info("Deleted element: {}", elementId);
             }
+        });
+    }
+
+    private void setupImageDataLoader() {
+        canvasManager.setImageDataLoader(filename -> {
+            if (currentNotebookId != null && currentChapterId != null && currentPageId != null) {
+                return pageService.getImageData(currentNotebookId, currentChapterId, currentPageId, filename);
+            }
+            return null;
         });
     }
 
@@ -128,5 +141,13 @@ public class CanvasEditorController {
      */
     public Optional<List<Node>> getCurrentToolSettings() {
         return canvasManager.getToolManager().getActiveToolSettings();
+    }
+
+    /**
+     * Set the background color for the canvas and text elements.
+     */
+    public void setBackgroundColor(String backgroundColor) {
+        this.backgroundColor = backgroundColor;
+        canvasManager.setBackgroundColor(backgroundColor);
     }
 }

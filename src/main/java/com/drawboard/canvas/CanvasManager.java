@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Manages the canvas rendering and coordinates all element renderers.
@@ -45,6 +46,9 @@ public class CanvasManager {
     private Consumer<DrawingElement> onDrawingElementAdded;
     private Consumer<CanvasElement> onElementUpdated;
     private Consumer<String> onElementDeleted;
+
+    // Function to load image data for rendering
+    private Function<String, byte[]> imageDataLoader;
 
     public CanvasManager(Pane canvasContainer) {
         this.canvasContainer = canvasContainer;
@@ -248,11 +252,27 @@ public class CanvasManager {
     }
 
     private void renderImageElement(ImageElement element) {
-        javafx.scene.Node node = imageRenderer.render(element);
+        javafx.scene.Node node;
+
+        // Try to load actual image data
+        if (imageDataLoader != null) {
+            byte[] imageData = imageDataLoader.apply(element.filename());
+            if (imageData != null) {
+                node = imageRenderer.renderWithData(element, imageData);
+                log.debug("Rendered image element: {} with actual data", element.filename());
+            } else {
+                log.warn("Failed to load image data for: {}, rendering placeholder", element.filename());
+                node = imageRenderer.render(element);
+            }
+        } else {
+            // No image loader configured, use placeholder
+            node = imageRenderer.render(element);
+            log.debug("Rendered image placeholder: {}", element.filename());
+        }
+
         if (node != null) {
             elementNodes.put(element.id(), node);
             elementsPane.getChildren().add(node);
-            log.debug("Rendered image element: {}", element.filename());
         }
     }
 
@@ -302,7 +322,15 @@ public class CanvasManager {
     private javafx.scene.Node createNodeForElement(CanvasElement element) {
         javafx.scene.Node node = switch (element) {
             case TextElement te -> textRenderer.render(te);
-            case ImageElement ie -> imageRenderer.render(ie);
+            case ImageElement ie -> {
+                if (imageDataLoader != null) {
+                    byte[] imageData = imageDataLoader.apply(ie.filename());
+                    if (imageData != null) {
+                        yield imageRenderer.renderWithData(ie, imageData);
+                    }
+                }
+                yield imageRenderer.render(ie);
+            }
             case DrawingElement de -> drawingRenderer.render(de);
         };
 
@@ -421,6 +449,29 @@ public class CanvasManager {
         return toolManager;
     }
 
+    /**
+     * Set the background color for text elements.
+     */
+    public void setBackgroundColor(String backgroundColor) {
+        textRenderer.setBackgroundColor(backgroundColor);
+
+        // Re-render existing text elements with the new background color
+        if (currentPage != null) {
+            currentPage.elements().stream()
+                .filter(e -> e instanceof TextElement)
+                .forEach(element -> {
+                    TextElement textElement = (TextElement) element;
+                    javafx.scene.Node existingNode = elementNodes.get(textElement.id());
+                    if (existingNode != null) {
+                        elementsPane.getChildren().remove(existingNode);
+                        javafx.scene.Node newNode = textRenderer.render(textElement);
+                        elementsPane.getChildren().add(newNode);
+                        elementNodes.put(textElement.id(), newNode);
+                    }
+                });
+        }
+    }
+
     public void setOnTextElementAdded(Consumer<TextElement> listener) {
         this.onTextElementAdded = listener;
     }
@@ -435,5 +486,13 @@ public class CanvasManager {
 
     public void setOnElementDeleted(Consumer<String> listener) {
         this.onElementDeleted = listener;
+    }
+
+    /**
+     * Set the image data loader function.
+     * The function takes a filename and returns the image bytes.
+     */
+    public void setImageDataLoader(Function<String, byte[]> imageDataLoader) {
+        this.imageDataLoader = imageDataLoader;
     }
 }

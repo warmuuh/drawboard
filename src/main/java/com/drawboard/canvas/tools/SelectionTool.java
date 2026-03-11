@@ -194,8 +194,10 @@ public class SelectionTool implements Tool {
     }
 
     private void handleResize(double deltaX, double deltaY) {
-        if (!(selectedNode instanceof javafx.scene.web.WebView webView)) {
-            return; // Only support resizing WebViews (text elements) for now
+        // Support resizing for WebViews (text elements) and ImageViews (image elements)
+        if (!(selectedNode instanceof javafx.scene.web.WebView) &&
+            !(selectedNode instanceof javafx.scene.image.ImageView)) {
+            return;
         }
 
         double newX = nodeStartX;
@@ -246,8 +248,15 @@ public class SelectionTool implements Tool {
 
         selectedNode.setLayoutX(newX);
         selectedNode.setLayoutY(newY);
-        webView.setPrefWidth(newWidth);
-        webView.setPrefHeight(newHeight);
+
+        // Apply new size based on node type
+        if (selectedNode instanceof javafx.scene.web.WebView webView) {
+            webView.setPrefWidth(newWidth);
+            webView.setPrefHeight(newHeight);
+        } else if (selectedNode instanceof javafx.scene.image.ImageView imageView) {
+            imageView.setFitWidth(newWidth);
+            imageView.setFitHeight(newHeight);
+        }
     }
 
     @Override
