@@ -25,6 +25,8 @@
                 <Menu text="Edit">
                     <MenuItem text="Undo" disable="true"/>
                     <MenuItem text="Redo" disable="true"/>
+                    <SeparatorMenuItem/>
+                    <MenuItem text="Find..." onAction="#handleSearch" accelerator="Shortcut+F"/>
                 </Menu>
                 <Menu text="View">
                     <CheckMenuItem text="Show Toolbar" selected="true" disable="true"/>
@@ -43,6 +45,9 @@
                 <Button text="New Chapter" fx:id="btnNewChapter" onAction="#handleNewChapter" disable="true"
                         minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"/>
                 <Button text="New Page" fx:id="btnNewPage" onAction="#handleNewPage" disable="true"
+                        minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"/>
+                <Separator orientation="VERTICAL"/>
+                <Button text="Search" fx:id="btnSearch" onAction="#handleSearch"
                         minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"/>
                 <Separator orientation="VERTICAL"/>
                 <Label text="Tools:" style="-fx-padding: 0 10 0 10;"/>

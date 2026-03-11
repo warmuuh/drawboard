@@ -7,6 +7,7 @@ import com.drawboard.service.NotebookService;
 import com.drawboard.service.ObsidianImportService;
 import com.drawboard.service.PageService;
 import com.drawboard.service.PreferencesService;
+import com.drawboard.service.SearchService;
 import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -42,6 +43,7 @@ public class MainWindowController {
     @FXML private Button btnNewChapter;
     @FXML private Button btnNewPage;
     @FXML private Button btnNewNotebook;
+    @FXML private Button btnSearch;
     @FXML private SplitPane splitPane;
     @FXML private ToggleButton btnSelectTool;
     @FXML private ToggleButton btnTextTool;
@@ -53,6 +55,7 @@ public class MainWindowController {
     private final PageService pageService;
     private final PreferencesService preferencesService;
     private final ObsidianImportService obsidianImportService;
+    private final SearchService searchService;
 
     private String currentNotebookId;
     private String currentChapterId;
@@ -63,11 +66,13 @@ public class MainWindowController {
 
     public MainWindowController(NotebookService notebookService, PageService pageService,
                                PreferencesService preferencesService,
-                               ObsidianImportService obsidianImportService) {
+                               ObsidianImportService obsidianImportService,
+                               SearchService searchService) {
         this.notebookService = notebookService;
         this.pageService = pageService;
         this.preferencesService = preferencesService;
         this.obsidianImportService = obsidianImportService;
+        this.searchService = searchService;
     }
 
     @FXML
@@ -113,6 +118,14 @@ public class MainWindowController {
             btnNewPage.setGraphic(pageIcon);
             btnNewPage.setText(""); // Remove text, show only icon
             btnNewPage.setTooltip(new Tooltip("New Page"));
+        }
+
+        // Set icon for Search button
+        javafx.scene.Node searchIcon = IconLoader.loadIcon("search");
+        if (searchIcon != null) {
+            btnSearch.setGraphic(searchIcon);
+            btnSearch.setText(""); // Remove text, show only icon
+            btnSearch.setTooltip(new Tooltip("Search (Ctrl+F)"));
         }
     }
 
@@ -690,6 +703,69 @@ public class MainWindowController {
         } catch (Exception e) {
             log.error("Failed to open preferences dialog", e);
             showError("Failed to open preferences: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void handleSearch() {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/SearchDialog.fxml"));
+
+            // Create controller with dependencies
+            SearchDialogController controller = new SearchDialogController(searchService);
+            loader.setController(controller);
+
+            Parent root = loader.load();
+
+            Stage dialogStage = new Stage();
+            dialogStage.setTitle("Search");
+            dialogStage.initModality(javafx.stage.Modality.NONE); // Non-modal so user can keep it open
+            dialogStage.initOwner(statusLabel.getScene().getWindow());
+            dialogStage.setScene(new javafx.scene.Scene(root));
+
+            controller.setDialogStage(dialogStage);
+            controller.setCurrentNotebookId(currentNotebookId);
+            controller.setOnResultSelected(result -> {
+                // Navigate to the search result
+                navigateToSearchResult(result);
+            });
+
+            dialogStage.show();
+            controller.focusSearchField();
+        } catch (Exception e) {
+            log.error("Failed to open search dialog", e);
+            showError("Failed to open search: " + e.getMessage());
+        }
+    }
+
+    private void navigateToSearchResult(com.drawboard.domain.search.SearchResult result) {
+        // Select the notebook
+        for (NotebookItem item : notebookSelector.getItems()) {
+            if (item.id().equals(result.notebookId())) {
+                // Only change notebook if different
+                if (notebookSelector.getValue() == null ||
+                    !notebookSelector.getValue().id().equals(result.notebookId())) {
+                    notebookSelector.setValue(item);
+                }
+                break;
+            }
+        }
+
+        // Navigate to the page
+        if (result.pageId() != null) {
+            selectPageInAccordion(result.chapterId(), result.pageId());
+            updateStatus("Navigated to: " + result.notebookName() + " › " +
+                        result.chapterName() + " › " + result.pageName());
+        } else if (result.chapterId() != null) {
+            // Just expand the chapter if it's a chapter name match
+            for (TitledPane pane : chapterAccordion.getPanes()) {
+                ChapterPane chapterPane = (ChapterPane) pane.getUserData();
+                if (chapterPane.chapterId().equals(result.chapterId())) {
+                    chapterAccordion.setExpandedPane(pane);
+                    updateStatus("Navigated to: " + result.notebookName() + " › " + result.chapterName());
+                    break;
+                }
+            }
         }
     }
 

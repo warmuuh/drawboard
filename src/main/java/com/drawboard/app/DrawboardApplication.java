@@ -4,6 +4,7 @@ import com.drawboard.service.NotebookService;
 import com.drawboard.service.ObsidianImportService;
 import com.drawboard.service.PageService;
 import com.drawboard.service.PreferencesService;
+import com.drawboard.service.SearchService;
 import com.drawboard.ui.MainWindowController;
 import com.drawboard.util.SampleDataGenerator;
 import io.avaje.inject.BeanScope;
@@ -49,15 +50,17 @@ public class DrawboardApplication extends Application {
             sampleDataGenerator.createSampleNotebook();
         }
 
-        // Get PreferencesService and ObsidianImportService
+        // Get PreferencesService, ObsidianImportService, and SearchService
         PreferencesService preferencesService = beanScope.get(PreferencesService.class);
         ObsidianImportService obsidianImportService = beanScope.get(ObsidianImportService.class);
+        SearchService searchService = beanScope.get(SearchService.class);
 
         // Load FXML with controller factory
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/MainWindow.fxml"));
         loader.setControllerFactory(clazz -> {
             if (clazz == MainWindowController.class) {
-                return new MainWindowController(notebookService, pageService, preferencesService, obsidianImportService);
+                return new MainWindowController(notebookService, pageService, preferencesService,
+                    obsidianImportService, searchService);
             }
             throw new IllegalArgumentException("Unexpected controller class: " + clazz);
         });

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      spacing="10"
+      prefWidth="600.0" prefHeight="500.0"
+      style="-fx-padding: 10;">
+
+    <!-- Search Input Area -->
+    <VBox spacing="5">
+        <Label text="Search for:" style="-fx-font-weight: bold;"/>
+        <HBox spacing="5">
+            <TextField fx:id="searchField" promptText="Enter search terms..." HBox.hgrow="ALWAYS"/>
+            <Button fx:id="searchButton" text="Search" onAction="#handleSearch" defaultButton="true" minWidth="80"/>
+        </HBox>
+    </VBox>
+
+    <!-- Search Options -->
+    <HBox fx:id="searchOptionsBox" spacing="15" style="-fx-padding: 5 0 0 0;">
+        <CheckBox fx:id="caseSensitiveCheckBox" text="Case sensitive"/>
+        <CheckBox fx:id="wholeWordCheckBox" text="Whole word"/>
+        <CheckBox fx:id="regexCheckBox" text="Regex"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <RadioButton fx:id="searchAllRadioButton" text="All notebooks"/>
+        <RadioButton fx:id="searchCurrentRadioButton" text="Current notebook"/>
+    </HBox>
+
+    <Separator/>
+
+    <!-- Results Area -->
+    <VBox VBox.vgrow="ALWAYS" spacing="5">
+        <HBox alignment="CENTER_LEFT" spacing="10">
+            <Label text="Results:" style="-fx-font-weight: bold;"/>
+            <ProgressIndicator fx:id="progressIndicator" maxWidth="20" maxHeight="20"/>
+        </HBox>
+        <ListView fx:id="resultsList" VBox.vgrow="ALWAYS" style="-fx-font-family: 'System'; -fx-font-size: 12;"/>
+    </VBox>
+
+    <!-- Status Bar -->
+    <HBox spacing="10" alignment="CENTER_LEFT" style="-fx-padding: 5; -fx-background-color: #f0f0f0;">
+        <Label fx:id="statusLabel" text="Ready"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="Close" onAction="#handleClose" cancelButton="true" minWidth="80"/>
+    </HBox>
+
+</VBox>
