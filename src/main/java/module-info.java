@@ -16,6 +16,11 @@ module com.drawboard {
     // Jackson (for Obsidian import)
     requires com.fasterxml.jackson.databind;
 
+    // CommonMark (for Markdown parsing)
+    requires org.commonmark;
+    requires org.commonmark.ext.gfm.strikethrough;
+    requires org.commonmark.ext.gfm.tables;
+
     // Logging
     requires org.slf4j;
     requires ch.qos.logback.classic;
