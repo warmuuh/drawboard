@@ -10,6 +10,9 @@ module com.drawboard {
     requires io.avaje.jsonb;
     requires io.avaje.jsonb.plugin;
 
+    // Jackson (for Obsidian import)
+    requires com.fasterxml.jackson.databind;
+
     // Logging
     requires org.slf4j;
     requires ch.qos.logback.classic;

@@ -4,6 +4,7 @@ import com.drawboard.domain.Chapter;
 import com.drawboard.domain.Notebook;
 import com.drawboard.domain.Page;
 import com.drawboard.service.NotebookService;
+import com.drawboard.service.ObsidianImportService;
 import com.drawboard.service.PageService;
 import com.drawboard.service.PreferencesService;
 import javafx.animation.PauseTransition;
@@ -11,10 +12,13 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.DirectoryChooser;
 import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,21 +40,27 @@ public class MainWindowController {
     @FXML private ToggleButton btnSelectTool;
     @FXML private ToggleButton btnTextTool;
     @FXML private ToggleButton btnPenTool;
+    @FXML private MenuItem menuDeleteNotebook;
 
     private final NotebookService notebookService;
     private final PageService pageService;
     private final PreferencesService preferencesService;
+    private final ObsidianImportService obsidianImportService;
 
     private String currentNotebookId;
     private String currentChapterId;
 
     private CanvasEditorController canvasEditor;
     private PauseTransition splitPaneSaveDebounce;
+    private boolean isCollapsingPanes = false; // Guard against recursive expansion/collapse
 
-    public MainWindowController(NotebookService notebookService, PageService pageService, PreferencesService preferencesService) {
+    public MainWindowController(NotebookService notebookService, PageService pageService,
+                               PreferencesService preferencesService,
+                               ObsidianImportService obsidianImportService) {
         this.notebookService = notebookService;
         this.pageService = pageService;
         this.preferencesService = preferencesService;
+        this.obsidianImportService = obsidianImportService;
     }
 
     @FXML
@@ -137,6 +147,9 @@ public class MainWindowController {
     }
 
     private void setupNotebookSelector() {
+        // Setup accordion to only allow one expanded pane at a time
+        setupAccordion();
+
         // Setup notebook selector
         notebookSelector.setMaxWidth(Double.MAX_VALUE);
         notebookSelector.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -145,6 +158,7 @@ public class MainWindowController {
                 loadChaptersForNotebook(newVal.id());
                 btnNewChapter.setDisable(false);
                 btnNewPage.setDisable(true);
+                menuDeleteNotebook.setDisable(false);
                 pageInfoLabel.setText("Notebook: " + newVal.name());
 
                 // Try to restore last opened page for this notebook
@@ -161,23 +175,16 @@ public class MainWindowController {
                 chapterAccordion.getPanes().clear();
                 btnNewChapter.setDisable(true);
                 btnNewPage.setDisable(true);
+                menuDeleteNotebook.setDisable(true);
                 pageInfoLabel.setText("");
                 clearCanvas();
             }
         });
 
-        // Prevent closing all accordion panes - keep at least one expanded
-        chapterAccordion.expandedPaneProperty().addListener((obs, oldPane, newPane) -> {
-            if (newPane == null && !chapterAccordion.getPanes().isEmpty()) {
-                // If trying to close the last pane, keep the previous one expanded
-                if (oldPane != null) {
-                    chapterAccordion.setExpandedPane(oldPane);
-                } else {
-                    // If no previous pane, expand the first one
-                    chapterAccordion.setExpandedPane(chapterAccordion.getPanes().get(0));
-                }
-            }
-        });
+    }
+
+    private void setupAccordion() {
+        // Don't add any accordion-level listener - let individual panes handle it
     }
 
     private void loadChaptersForNotebook(String notebookId) {
@@ -188,10 +195,15 @@ public class MainWindowController {
             return;
         }
 
+        log.info("Loading {} chapters for notebook {}", notebook.chapters().size(), notebookId);
+
         for (Chapter chapter : notebook.chapters()) {
             TitledPane chapterPane = createChapterPane(notebookId, chapter);
             chapterAccordion.getPanes().add(chapterPane);
+            log.debug("Added chapter pane: {} with {} pages", chapter.name(), chapter.pageIds().size());
         }
+
+        log.info("Total panes in accordion: {}", chapterAccordion.getPanes().size());
 
         // Expand the first pane if there are any chapters
         if (!chapterAccordion.getPanes().isEmpty()) {
@@ -203,6 +215,21 @@ public class MainWindowController {
         TitledPane pane = new TitledPane();
         pane.setText(chapter.name());
         pane.setUserData(new ChapterPane(chapter.id()));
+        pane.setAnimated(false); // Disable animation to avoid conflicts
+        pane.setExpanded(false); // Start collapsed
+
+        // Listen for expansion and use Accordion's setExpandedPane to manage single expansion
+        pane.expandedProperty().addListener((obs, wasExpanded, isExpanded) -> {
+            if (isExpanded && !isCollapsingPanes) {
+                // Use the Accordion's setExpandedPane method which handles collapsing others
+                isCollapsingPanes = true;
+                try {
+                    chapterAccordion.setExpandedPane(pane);
+                } finally {
+                    isCollapsingPanes = false;
+                }
+            }
+        });
 
         // Create ListView for pages
         ListView<PageItem> pageList = new ListView<>();
@@ -306,6 +333,40 @@ public class MainWindowController {
                 updateStatus("Created notebook: " + name);
             }
         });
+    }
+
+    @FXML
+    private void handleDeleteNotebook() {
+        if (currentNotebookId == null) {
+            showError("Please select a notebook first");
+            return;
+        }
+
+        NotebookItem currentItem = notebookSelector.getValue();
+        if (currentItem == null) {
+            return;
+        }
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Confirm Delete");
+        alert.setHeaderText("Delete notebook: " + currentItem.name());
+        alert.setContentText("This will permanently delete the notebook and all its chapters and pages.\nThis action cannot be undone. Are you sure?");
+
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            try {
+                notebookService.deleteNotebook(currentNotebookId);
+
+                // Remove from selector
+                notebookSelector.getItems().remove(currentItem);
+                notebookSelector.setValue(null);
+
+                updateStatus("Deleted notebook: " + currentItem.name());
+            } catch (Exception e) {
+                log.error("Failed to delete notebook", e);
+                showError("Failed to delete notebook: " + e.getMessage());
+            }
+        }
     }
 
     @FXML
@@ -519,6 +580,69 @@ public class MainWindowController {
         alert.setContentText("A notebook application with free-form canvas pages.\n\n" +
                            "Built with Java 25 and JavaFX 23");
         alert.showAndWait();
+    }
+
+    @FXML
+    private void handleImportObsidianVault() {
+        DirectoryChooser directoryChooser = new DirectoryChooser();
+        directoryChooser.setTitle("Select Obsidian Vault Directory");
+
+        // Try to set initial directory to user's Documents folder
+        File documentsDir = new File(System.getProperty("user.home"), "Documents");
+        if (documentsDir.exists()) {
+            directoryChooser.setInitialDirectory(documentsDir);
+        }
+
+        File selectedDirectory = directoryChooser.showDialog(notebookSelector.getScene().getWindow());
+
+        if (selectedDirectory != null) {
+            importObsidianVault(selectedDirectory.toPath());
+        }
+    }
+
+    private void importObsidianVault(Path vaultPath) {
+        updateStatus("Importing Obsidian vault...");
+
+        try {
+            // Import vault (use vault directory name as notebook name)
+            Notebook notebook = obsidianImportService.importVault(vaultPath, null);
+
+            // Reload notebook list to include the new notebook
+            loadNotebooks();
+
+            // Select the newly imported notebook
+            NotebookItem newItem = null;
+            for (NotebookItem item : notebookSelector.getItems()) {
+                if (item.id().equals(notebook.id())) {
+                    newItem = item;
+                    break;
+                }
+            }
+
+            if (newItem != null) {
+                // Force reload by setting to null first if it's already selected
+                if (notebookSelector.getValue() != null &&
+                    notebookSelector.getValue().id().equals(notebook.id())) {
+                    notebookSelector.setValue(null);
+                }
+                notebookSelector.setValue(newItem);
+            }
+
+            // Show success message
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Import Successful");
+            alert.setHeaderText("Obsidian vault imported");
+            alert.setContentText(String.format(
+                "Successfully imported vault '%s' as notebook with %d chapters.",
+                notebook.name(), notebook.chapters().size()));
+            alert.showAndWait();
+
+            updateStatus("Import complete: " + notebook.name());
+        } catch (Exception e) {
+            log.error("Failed to import Obsidian vault", e);
+            showError("Failed to import vault: " + e.getMessage());
+            updateStatus("Import failed");
+        }
     }
 
     private void updateStatus(String message) {

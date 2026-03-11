@@ -14,6 +14,11 @@
             <MenuBar>
                 <Menu text="File">
                     <MenuItem text="New Notebook..." fx:id="menuNewNotebook" onAction="#handleNewNotebook"/>
+                    <MenuItem text="Delete Notebook..." fx:id="menuDeleteNotebook" onAction="#handleDeleteNotebook" disable="true"/>
+                    <SeparatorMenuItem/>
+                    <Menu text="Import from...">
+                        <MenuItem text="Obsidian Vault..." onAction="#handleImportObsidianVault"/>
+                    </Menu>
                     <SeparatorMenuItem/>
                     <MenuItem text="Exit" onAction="#handleExit"/>
                 </Menu>
@@ -52,7 +57,9 @@
                 <Label text="Notebook" style="-fx-font-weight: bold;"/>
                 <ComboBox fx:id="notebookSelector" promptText="Select a notebook..." maxWidth="Infinity"/>
                 <Label text="Chapters" style="-fx-font-weight: bold; -fx-padding: 10 0 0 0;"/>
-                <Accordion fx:id="chapterAccordion" VBox.vgrow="ALWAYS"/>
+                <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" style="-fx-background-color: transparent;">
+                    <Accordion fx:id="chapterAccordion"/>
+                </ScrollPane>
             </VBox>
 
             <!-- Canvas Editor Area (Right) -->
