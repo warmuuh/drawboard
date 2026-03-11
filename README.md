@@ -30,12 +30,13 @@ A desktop notebook application with free-form canvas pages, inspired by OneNote.
 
 ## Technology Stack
 
-- **Java 25**: Latest LTS features
+- **Java 25**: Liberica JDK Full (includes JavaFX)
 - **JavaFX 23**: UI framework and canvas rendering
+- **fxsvgimage**: SVG support for JavaFX
 - **Avaje Inject**: Lightweight, fast dependency injection
 - **Avaje JsonB**: JSON serialization for storage
 - **Maven**: Build tool
-- **jlink**: Native runtime image creation
+- **jpackage**: Native installer creation (DMG for macOS)
 
 ## Architecture
 
@@ -135,105 +136,79 @@ com.drawboard
 ## Building and Running
 
 ### Prerequisites
-- SDKMAN installed for Java version management
-- Java 25 (managed via SDKMAN)
-- Maven 3.9+
+- **SDKMAN** installed for Java version management
+- **Liberica JDK 25 Full** (includes JavaFX) - managed via SDKMAN
+- **Maven** 3.9+
 
 ### Setup Environment
 
 ```bash
-# Activate Java 25 environment (automatically via .sdkmanrc)
+# Activate Java environment (automatically via .sdkmanrc)
 sdk env
 
-# Or manually install Java 25 if not installed
-sdk install java 25-tem
+# Or manually install Liberica JDK 25 with JavaFX if not installed
+sdk install java 25.0.2.fx-librca
 ```
 
-### Build
+### Development
+
+**Build**
 ```bash
 mvn clean compile
 ```
 
-### Run Tests
+**Run Tests**
 ```bash
 mvn test
 ```
 
-### Run
+**Run Application**
 ```bash
 mvn javafx:run
 ```
 
-### Create Native Runtime Image
+### Packaging
+
+**Create Native DMG Installer (macOS)**
 ```bash
-mvn jlink:jlink
+./package.sh
 ```
 
-The runtime image will be in `target/jlink-image/`.
+The DMG installer will be created at `target/dist/Drawboard-1.0.dmg`.
 
-### Run from Runtime Image
+**Manual Packaging**
+
+If you need to customize the packaging:
+
 ```bash
-./target/jlink-image/bin/drawboard
+# Build JAR and copy dependencies
+mvn clean package -DskipTests
+
+# Run jpackage manually
+jpackage \
+  --type dmg \
+  --name Drawboard \
+  --app-version 1.0 \
+  --vendor "Drawboard" \
+  --dest target/dist \
+  --input target \
+  --main-jar drawboard-0.1.0-SNAPSHOT.jar \
+  --main-class com.drawboard.app.DrawboardApplication \
+  --java-options "-Dfile.encoding=UTF-8"
 ```
 
-## Development Roadmap
+## Features
 
-### Phase 1: Domain Models ✅ COMPLETE
-- [x] Project scaffolding
-- [x] Domain models (Notebook, Chapter, Page, Canvas Elements)
-- [x] JSON serialization with Avaje JsonB
-- [x] Sealed interface for polymorphic canvas elements
-
-### Phase 2: Storage Layer ✅ COMPLETE
-- [x] File-based storage service
-- [x] Directory structure for notebooks/chapters/pages
-- [x] Image storage and retrieval
-- [x] JSON persistence with proper error handling
-
-### Phase 3: Service Layer ✅ COMPLETE
-- [x] NotebookService (CRUD operations)
-- [x] PageService (CRUD operations + element management)
-- [x] Business logic layer with validation
-- [x] Comprehensive test coverage (28 tests passing)
-
-### Phase 4: UI Shell ✅ COMPLETE
-- [x] Main window with menu bar and toolbar
-- [x] Navigation tree showing notebook hierarchy
-- [x] Create, rename, delete notebooks/chapters/pages
-- [x] Context menus for all operations
-- [x] Status bar and page info display
-- [x] DI integration with Avaje Inject
-
-### Phase 5: Canvas Implementation (Next)
-- [ ] Canvas rendering architecture
-- [ ] Rich text element rendering (WebView)
-- [ ] Image element rendering (ImageView)
-- [ ] Drawing element rendering (JavaFX Canvas)
-- [ ] Canvas manager coordinating all renderers
-
-### Phase 6: Interactivity
-- [ ] Selection tool
-- [ ] Move and resize elements
-- [ ] Drawing tools (pen, highlighter)
-- [ ] Text and image insertion
-- [ ] Toolbar for tool selection
-
-### Phase 2: Polish
-- [ ] Undo/redo
-- [ ] Copy/paste elements
-- [ ] Multiple notebooks management
-- [ ] Search functionality
-- [ ] Keyboard shortcuts
-- [ ] Settings/preferences
-
-### Phase 3: Advanced
-- [ ] Full-text search with indexing (SQLite FTS?)
-- [ ] Export pages (PDF, images)
-- [ ] Themes/styling
-- [ ] Plugin system
-
-### Phase 4: Mobile
-- [ ] Android app with data sync
+The application includes:
+- Hierarchical organization with notebooks, chapters, and pages
+- Rich text editing with markdown support
+- Canvas-based free-form layout
+- Drawing tools (pen, highlighter, arrow, line, rectangle, circle)
+- Selection tools (intersects and contains modes)
+- Image insertion and positioning
+- Search functionality
+- Clipboard support (paste images and text)
+- File-based storage with JSON and automatic saving
 
 ## License
 

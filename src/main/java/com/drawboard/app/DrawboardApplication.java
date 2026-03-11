@@ -12,6 +12,7 @@ import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
 import javafx.stage.Stage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,14 @@ public class DrawboardApplication extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
         primaryStage.setTitle("Drawboard");
+
+        // Set application icon
+        try {
+            Image icon = new Image(getClass().getResourceAsStream("/icons/drawboard.png"));
+            primaryStage.getIcons().add(icon);
+        } catch (Exception e) {
+            log.warn("Failed to load application icon", e);
+        }
 
         // Get services from DI container
         NotebookService notebookService = beanScope.get(NotebookService.class);
