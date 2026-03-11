@@ -14,42 +14,20 @@ import java.util.function.Consumer;
  * Text tool for adding text elements to the canvas.
  * Click to create a new text box at the click location.
  */
-public class TextTool implements Tool {
+public class TextTool extends AbstractTool {
     private static final Logger log = LoggerFactory.getLogger(TextTool.class);
 
-    private final Pane canvasContainer;
-    private final Pane elementsPane;
     private Consumer<TextElement> onTextElementCreated;
 
     private static final double DEFAULT_WIDTH = 300;
     private static final double DEFAULT_HEIGHT = 100;
 
-    // Panning state
-    private boolean isPanning;
-    private double panStartX;
-    private double panStartY;
-    private double panStartTranslateX;
-    private double panStartTranslateY;
-
     public TextTool(Pane canvasContainer, Pane elementsPane) {
-        this.canvasContainer = canvasContainer;
-        this.elementsPane = elementsPane;
+        super(canvasContainer, elementsPane);
     }
 
     @Override
-    public void onMousePressed(MouseEvent event) {
-        // Middle button for panning
-        if (event.isMiddleButtonDown()) {
-            isPanning = true;
-            panStartX = event.getX();
-            panStartY = event.getY();
-            panStartTranslateX = elementsPane.getTranslateX();
-            panStartTranslateY = elementsPane.getTranslateY();
-            canvasContainer.setCursor(Cursor.MOVE);
-            log.debug("Starting pan (middle button) in Text tool");
-            event.consume();
-            return;
-        }
+    protected void handleMousePressed(MouseEvent event) {
 
         // Check if clicking on an existing text element
         javafx.scene.Node clickedNode = findTextNodeAt(event.getX(), event.getY());
@@ -130,24 +108,13 @@ public class TextTool implements Tool {
     }
 
     @Override
-    public void onMouseDragged(MouseEvent event) {
-        if (isPanning) {
-            double deltaX = event.getX() - panStartX;
-            double deltaY = event.getY() - panStartY;
-            elementsPane.setTranslateX(panStartTranslateX + deltaX);
-            elementsPane.setTranslateY(panStartTranslateY + deltaY);
-            event.consume();
-        }
+    protected void handleMouseDragged(MouseEvent event) {
+        // No tool-specific drag behavior for text tool
     }
 
     @Override
-    public void onMouseReleased(MouseEvent event) {
-        if (isPanning) {
-            isPanning = false;
-            canvasContainer.setCursor(Cursor.TEXT);
-            log.debug("Canvas panned to ({}, {})", elementsPane.getTranslateX(), elementsPane.getTranslateY());
-            event.consume();
-        }
+    protected void handleMouseReleased(MouseEvent event) {
+        // No tool-specific release behavior for text tool
     }
 
     @Override

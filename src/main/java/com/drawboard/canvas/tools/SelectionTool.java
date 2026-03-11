@@ -13,11 +13,8 @@ import org.slf4j.LoggerFactory;
  * Selection tool for selecting and moving canvas elements.
  * Allows clicking on elements to select them and dragging to move them.
  */
-public class SelectionTool implements Tool {
+public class SelectionTool extends AbstractTool {
     private static final Logger log = LoggerFactory.getLogger(SelectionTool.class);
-
-    private final Pane canvasContainer;
-    private final Pane elementsPane;
     private Node selectedNode;
     private Rectangle selectionBorder;
     private javafx.scene.Group resizeHandles;
@@ -31,10 +28,6 @@ public class SelectionTool implements Tool {
     private double nodeStartHeight;
 
     private ResizeHandle activeResizeHandle;
-
-    private boolean isPanningCanvas;
-    private double canvasStartTranslateX;
-    private double canvasStartTranslateY;
 
     private boolean isDrawingSelectionRect;
     private Rectangle selectionRect;
@@ -51,27 +44,13 @@ public class SelectionTool implements Tool {
     }
 
     public SelectionTool(Pane canvasContainer, Pane elementsPane) {
-        this.canvasContainer = canvasContainer;
-        this.elementsPane = elementsPane;
+        super(canvasContainer, elementsPane);
         this.selectedNodes = new java.util.ArrayList<>();
         this.selectionBorders = new java.util.HashMap<>();
     }
 
     @Override
-    public void onMousePressed(MouseEvent event) {
-        // Middle button for panning (works in all tools)
-        if (event.isMiddleButtonDown()) {
-            isPanningCanvas = true;
-            dragStartX = event.getX();
-            dragStartY = event.getY();
-            canvasStartTranslateX = elementsPane.getTranslateX();
-            canvasStartTranslateY = elementsPane.getTranslateY();
-            canvasContainer.setCursor(Cursor.MOVE);
-            log.debug("Starting canvas pan (middle button)");
-            event.consume();
-            return;
-        }
-
+    protected void handleMousePressed(MouseEvent event) {
         // Primary button - selection/resize/drag
         if (!event.isPrimaryButtonDown()) {
             return;
@@ -145,15 +124,11 @@ public class SelectionTool implements Tool {
     }
 
     @Override
-    public void onMouseDragged(MouseEvent event) {
+    protected void handleMouseDragged(MouseEvent event) {
         double deltaX = event.getX() - dragStartX;
         double deltaY = event.getY() - dragStartY;
 
-        if (isPanningCanvas) {
-            // Pan the entire canvas
-            elementsPane.setTranslateX(canvasStartTranslateX + deltaX);
-            elementsPane.setTranslateY(canvasStartTranslateY + deltaY);
-        } else if (isDrawingSelectionRect) {
+        if (isDrawingSelectionRect) {
             // Update selection rectangle
             // Adjust current position for canvas translation
             double translateX = elementsPane.getTranslateX();
@@ -260,12 +235,8 @@ public class SelectionTool implements Tool {
     }
 
     @Override
-    public void onMouseReleased(MouseEvent event) {
-        if (isPanningCanvas) {
-            isPanningCanvas = false;
-            canvasContainer.setCursor(Cursor.DEFAULT);
-            log.debug("Canvas panned to ({}, {})", elementsPane.getTranslateX(), elementsPane.getTranslateY());
-        } else if (isDrawingSelectionRect) {
+    protected void handleMouseReleased(MouseEvent event) {
+        if (isDrawingSelectionRect) {
             // Complete selection - find all nodes within rectangle
             isDrawingSelectionRect = false;
             selectNodesInRectangle(selectionRect.getBoundsInParent());

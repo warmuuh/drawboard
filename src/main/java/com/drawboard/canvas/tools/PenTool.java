@@ -28,13 +28,11 @@ import java.util.function.Consumer;
 /**
  * Pen tool for freehand drawing on the canvas.
  */
-public class PenTool implements Tool {
+public class PenTool extends AbstractTool {
     private static final Logger log = LoggerFactory.getLogger(PenTool.class);
 
-    private final Pane canvasContainer;
     private final Canvas drawingCanvas;
     private final GraphicsContext gc;
-    private final Pane elementsPane;
 
     private Color currentColor = Color.BLACK;
     private double strokeWidth = 2.0;
@@ -46,39 +44,19 @@ public class PenTool implements Tool {
     private double lastX;
     private double lastY;
 
-    private boolean isPanning;
-    private double panStartX;
-    private double panStartY;
-    private double panStartTranslateX;
-    private double panStartTranslateY;
-
     private Consumer<DrawingElement> onDrawingComplete;
     private List<Node> settingsNodes;
     private List<Button> colorButtons;
 
     public PenTool(Pane canvasContainer, Canvas drawingCanvas, Pane elementsPane) {
-        this.canvasContainer = canvasContainer;
+        super(canvasContainer, elementsPane);
         this.drawingCanvas = drawingCanvas;
-        this.elementsPane = elementsPane;
         this.gc = drawingCanvas.getGraphicsContext2D();
         this.settingsNodes = createSettingsNodes();
     }
 
     @Override
-    public void onMousePressed(MouseEvent event) {
-        // Middle button for panning
-        if (event.isMiddleButtonDown()) {
-            isPanning = true;
-            panStartX = event.getX();
-            panStartY = event.getY();
-            panStartTranslateX = elementsPane.getTranslateX();
-            panStartTranslateY = elementsPane.getTranslateY();
-            canvasContainer.setCursor(Cursor.MOVE);
-            log.debug("Starting pan (middle button) in Pen tool");
-            event.consume();
-            return;
-        }
-
+    protected void handleMousePressed(MouseEvent event) {
         // Only handle primary button (left click) for drawing
         if (!event.isPrimaryButtonDown()) {
             return;
@@ -110,17 +88,7 @@ public class PenTool implements Tool {
     }
 
     @Override
-    public void onMouseDragged(MouseEvent event) {
-        if (isPanning) {
-            // Pan the canvas
-            double deltaX = event.getX() - panStartX;
-            double deltaY = event.getY() - panStartY;
-            elementsPane.setTranslateX(panStartTranslateX + deltaX);
-            elementsPane.setTranslateY(panStartTranslateY + deltaY);
-            event.consume();
-            return;
-        }
-
+    protected void handleMouseDragged(MouseEvent event) {
         if (!isDrawing) {
             return;
         }
@@ -144,15 +112,7 @@ public class PenTool implements Tool {
     }
 
     @Override
-    public void onMouseReleased(MouseEvent event) {
-        if (isPanning) {
-            isPanning = false;
-            canvasContainer.setCursor(Cursor.CROSSHAIR);
-            log.debug("Pan complete in Pen tool");
-            event.consume();
-            return;
-        }
-
+    protected void handleMouseReleased(MouseEvent event) {
         if (!isDrawing) {
             return;
         }
