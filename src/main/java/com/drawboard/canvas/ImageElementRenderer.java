@@ -58,6 +58,18 @@ public class ImageElementRenderer {
 
             imageView.setPreserveRatio(true);
 
+            // Allow middle-button events to pass through for canvas panning
+            imageView.addEventFilter(javafx.scene.input.MouseEvent.ANY, event -> {
+                if (event.getButton() == javafx.scene.input.MouseButton.MIDDLE ||
+                    event.isMiddleButtonDown()) {
+                    // Let the event pass through to parent for panning
+                    event.consume(); // Consume it here to prevent ImageView from handling it
+
+                    // Re-fire the event on the parent so the tool can handle it
+                    javafx.event.Event.fireEvent(imageView.getParent(), event.copyFor(event.getSource(), imageView.getParent()));
+                }
+            });
+
             return imageView;
         } catch (Exception e) {
             log.error("Failed to load image: {}", element.filename(), e);

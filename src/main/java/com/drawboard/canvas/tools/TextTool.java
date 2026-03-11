@@ -24,6 +24,13 @@ public class TextTool implements Tool {
     private static final double DEFAULT_WIDTH = 300;
     private static final double DEFAULT_HEIGHT = 100;
 
+    // Panning state
+    private boolean isPanning;
+    private double panStartX;
+    private double panStartY;
+    private double panStartTranslateX;
+    private double panStartTranslateY;
+
     public TextTool(Pane canvasContainer, Pane elementsPane) {
         this.canvasContainer = canvasContainer;
         this.elementsPane = elementsPane;
@@ -31,6 +38,19 @@ public class TextTool implements Tool {
 
     @Override
     public void onMousePressed(MouseEvent event) {
+        // Middle button for panning
+        if (event.isMiddleButtonDown()) {
+            isPanning = true;
+            panStartX = event.getX();
+            panStartY = event.getY();
+            panStartTranslateX = elementsPane.getTranslateX();
+            panStartTranslateY = elementsPane.getTranslateY();
+            canvasContainer.setCursor(Cursor.MOVE);
+            log.debug("Starting pan (middle button) in Text tool");
+            event.consume();
+            return;
+        }
+
         // Check if clicking on an existing text element
         javafx.scene.Node clickedNode = findTextNodeAt(event.getX(), event.getY());
 
@@ -111,12 +131,23 @@ public class TextTool implements Tool {
 
     @Override
     public void onMouseDragged(MouseEvent event) {
-        // No-op for text tool
+        if (isPanning) {
+            double deltaX = event.getX() - panStartX;
+            double deltaY = event.getY() - panStartY;
+            elementsPane.setTranslateX(panStartTranslateX + deltaX);
+            elementsPane.setTranslateY(panStartTranslateY + deltaY);
+            event.consume();
+        }
     }
 
     @Override
     public void onMouseReleased(MouseEvent event) {
-        // No-op for text tool
+        if (isPanning) {
+            isPanning = false;
+            canvasContainer.setCursor(Cursor.TEXT);
+            log.debug("Canvas panned to ({}, {})", elementsPane.getTranslateX(), elementsPane.getTranslateY());
+            event.consume();
+        }
     }
 
     @Override

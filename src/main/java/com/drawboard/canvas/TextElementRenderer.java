@@ -58,6 +58,19 @@ public class TextElementRenderer {
         // Intercept parent's mouse events and re-dispatch to WebView
         webView.setPickOnBounds(false); // Only respond to actual content, not transparent areas
 
+        // Allow middle-button events to pass through for canvas panning
+        // Use event filter to catch the event before WebView consumes it
+        webView.addEventFilter(javafx.scene.input.MouseEvent.ANY, event -> {
+            if (event.getButton() == javafx.scene.input.MouseButton.MIDDLE ||
+                event.isMiddleButtonDown()) {
+                // Let the event pass through to parent for panning
+                event.consume(); // Consume it here to prevent WebView from handling it
+
+                // Re-fire the event on the parent so the tool can handle it
+                javafx.event.Event.fireEvent(webView.getParent(), event.copyFor(event.getSource(), webView.getParent()));
+            }
+        });
+
         return webView;
     }
 
