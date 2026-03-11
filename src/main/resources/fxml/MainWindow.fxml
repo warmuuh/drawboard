@@ -50,6 +50,8 @@
                               minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"/>
                 <ToggleButton text="Pen" fx:id="btnPenTool" onAction="#handlePenTool"
                               minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"/>
+                <!-- Tool-specific settings container -->
+                <HBox fx:id="toolSettingsContainer" spacing="5" style="-fx-padding: 0 0 0 5;"/>
             </ToolBar>
         </VBox>
     </top>

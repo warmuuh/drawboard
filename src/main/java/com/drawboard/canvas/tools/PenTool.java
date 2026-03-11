@@ -3,10 +3,18 @@ package com.drawboard.canvas.tools;
 import com.drawboard.domain.elements.DrawPath;
 import com.drawboard.domain.elements.DrawingElement;
 import com.drawboard.domain.elements.Point;
+import javafx.geometry.Insets;
 import javafx.scene.Cursor;
+import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.Separator;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
+import javafx.scene.layout.CornerRadii;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import org.slf4j.Logger;
@@ -26,6 +34,7 @@ public class PenTool implements Tool {
     private final Pane canvasContainer;
     private final Canvas drawingCanvas;
     private final GraphicsContext gc;
+    private final Pane elementsPane;
 
     private Color currentColor = Color.BLACK;
     private double strokeWidth = 2.0;
@@ -34,13 +43,19 @@ public class PenTool implements Tool {
     private List<Point> currentPath;
     private double pathStartX;
     private double pathStartY;
+    private double lastX;
+    private double lastY;
 
     private Consumer<DrawingElement> onDrawingComplete;
+    private List<Node> settingsNodes;
+    private List<Button> colorButtons;
 
-    public PenTool(Pane canvasContainer, Canvas drawingCanvas) {
+    public PenTool(Pane canvasContainer, Canvas drawingCanvas, Pane elementsPane) {
         this.canvasContainer = canvasContainer;
         this.drawingCanvas = drawingCanvas;
+        this.elementsPane = elementsPane;
         this.gc = drawingCanvas.getGraphicsContext2D();
+        this.settingsNodes = createSettingsNodes();
     }
 
     @Override
@@ -48,8 +63,11 @@ public class PenTool implements Tool {
         isDrawing = true;
         currentPath = new ArrayList<>();
 
+        // Get coordinates relative to the canvas container (event source)
         pathStartX = event.getX();
         pathStartY = event.getY();
+        lastX = event.getX();
+        lastY = event.getY();
 
         // Add first point
         currentPath.add(new Point(0, 0));
@@ -60,8 +78,9 @@ public class PenTool implements Tool {
         gc.setLineCap(javafx.scene.shape.StrokeLineCap.ROUND);
         gc.setLineJoin(javafx.scene.shape.StrokeLineJoin.ROUND);
 
-        gc.beginPath();
-        gc.moveTo(event.getX(), event.getY());
+        log.debug("Pen started at ({}, {}), canvas layout=({}, {}), color={}, canvas size={}x{}",
+            event.getX(), event.getY(), drawingCanvas.getLayoutX(), drawingCanvas.getLayoutY(),
+            currentColor, drawingCanvas.getWidth(), drawingCanvas.getHeight());
 
         event.consume();
     }
@@ -77,9 +96,15 @@ public class PenTool implements Tool {
         double relY = event.getY() - pathStartY;
         currentPath.add(new Point(relX, relY));
 
-        // Draw line segment
-        gc.lineTo(event.getX(), event.getY());
-        gc.stroke();
+        // Draw line segment using strokeLine for immediate visual feedback
+        gc.strokeLine(lastX, lastY, event.getX(), event.getY());
+
+        lastX = event.getX();
+        lastY = event.getY();
+
+        if (currentPath.size() % 10 == 0) {
+            log.debug("Drawing: {} points, last at ({}, {})", currentPath.size(), event.getX(), event.getY());
+        }
 
         event.consume();
     }
@@ -137,6 +162,8 @@ public class PenTool implements Tool {
     @Override
     public void activate() {
         canvasContainer.setCursor(Cursor.CROSSHAIR);
+        // Make elements pane mouse transparent so drawing events pass through
+        elementsPane.setMouseTransparent(true);
         log.debug("Pen tool activated");
     }
 
@@ -145,6 +172,8 @@ public class PenTool implements Tool {
         isDrawing = false;
         currentPath = null;
         canvasContainer.setCursor(Cursor.DEFAULT);
+        // Restore mouse events to elements pane
+        elementsPane.setMouseTransparent(false);
         log.debug("Pen tool deactivated");
     }
 
@@ -171,4 +200,85 @@ public class PenTool implements Tool {
             (int) (color.getGreen() * 255),
             (int) (color.getBlue() * 255));
     }
+
+    @Override
+    public List<Node> getSettingsNodes() {
+        return settingsNodes;
+    }
+
+    private List<Node> createSettingsNodes() {
+        List<Node> nodes = new ArrayList<>();
+        colorButtons = new ArrayList<>();
+
+        // Add separator
+        Separator separator = new Separator();
+        separator.setOrientation(javafx.geometry.Orientation.VERTICAL);
+        nodes.add(separator);
+
+        // Add label
+        Label label = new Label("Pen:");
+        label.setStyle("-fx-padding: 0 10 0 10;");
+        nodes.add(label);
+
+        // Define colors
+        List<ColorOption> colors = List.of(
+            new ColorOption(Color.RED, "Red"),
+            new ColorOption(Color.GREEN, "Green"),
+            new ColorOption(Color.YELLOW, "Yellow"),
+            new ColorOption(Color.BLUE, "Blue"),
+            new ColorOption(Color.BLACK, "Black")
+        );
+
+        // Create color buttons
+        for (ColorOption colorOption : colors) {
+            Button colorButton = createColorButton(colorOption.color(), colorOption.name());
+            colorButtons.add(colorButton);
+            nodes.add(colorButton);
+        }
+
+        // Select black by default (last button)
+        if (!colorButtons.isEmpty()) {
+            updateButtonSelection(colorButtons.get(colorButtons.size() - 1));
+        }
+
+        return nodes;
+    }
+
+    private Button createColorButton(Color color, String tooltip) {
+        Button button = new Button();
+        button.setMinSize(24, 24);
+        button.setMaxSize(24, 24);
+        button.setPrefSize(24, 24);
+
+        // Set background color
+        button.setBackground(new Background(new BackgroundFill(
+            color,
+            new CornerRadii(3),
+            Insets.EMPTY
+        )));
+
+        // Set tooltip
+        button.setTooltip(new javafx.scene.control.Tooltip(tooltip));
+
+        // Set action
+        button.setOnAction(e -> {
+            setColor(color);
+            updateButtonSelection(button);
+        });
+
+        return button;
+    }
+
+    private void updateButtonSelection(Button selectedButton) {
+        // Update all buttons to show selection state
+        for (Button btn : colorButtons) {
+            if (btn == selectedButton) {
+                btn.setStyle("-fx-border-color: #2196F3; -fx-border-width: 2px; -fx-border-radius: 3px;");
+            } else {
+                btn.setStyle("-fx-border-color: #CCCCCC; -fx-border-width: 1px; -fx-border-radius: 3px;");
+            }
+        }
+    }
+
+    private record ColorOption(Color color, String name) {}
 }

@@ -56,10 +56,17 @@ public class CanvasManager {
         // Create elements pane for all elements (text, images, drawings)
         this.elementsPane = new Pane();
         this.elementsPane.setPrefSize(2000, 2000);
+        this.elementsPane.setMinSize(0, 0); // Allow shrinking
+        this.elementsPane.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
         // Create overlay canvas (top layer for active drawing)
         this.overlayCanvas = new Canvas(2000, 2000);
-        this.overlayCanvas.setMouseTransparent(false);
+        // Make canvas mouse transparent so events pass through to the container
+        this.overlayCanvas.setMouseTransparent(true);
+
+        // Bind canvas size to pane size so they always match
+        overlayCanvas.widthProperty().bind(elementsPane.widthProperty());
+        overlayCanvas.heightProperty().bind(elementsPane.heightProperty());
 
         // Stack layers: elements pane (back) -> overlay canvas (front)
         canvasContainer.getChildren().addAll(elementsPane, overlayCanvas);

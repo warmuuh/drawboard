@@ -4,9 +4,13 @@ import com.drawboard.canvas.CanvasManager;
 import com.drawboard.domain.Page;
 import com.drawboard.service.PageService;
 import com.drawboard.service.PreferencesService;
+import javafx.scene.Node;
 import javafx.scene.layout.Pane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.Optional;
 
 /**
  * Controller for the canvas editor area.
@@ -117,5 +121,12 @@ public class CanvasEditorController {
      */
     public void setActiveTool(String toolName) {
         canvasManager.getToolManager().setActiveTool(toolName);
+    }
+
+    /**
+     * Get the settings nodes for the current active tool.
+     */
+    public Optional<List<Node>> getCurrentToolSettings() {
+        return canvasManager.getToolManager().getActiveToolSettings();
     }
 }

@@ -1,5 +1,6 @@
 package com.drawboard.canvas.tools;
 
+import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Pane;
@@ -7,7 +8,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Manages canvas tools and dispatches mouse events to the active tool.
@@ -23,7 +26,7 @@ public class ToolManager {
 
         // Register available tools
         tools.put("Selection", new SelectionTool(canvasContainer, elementsPane));
-        tools.put("Pen", new PenTool(canvasContainer, drawingCanvas));
+        tools.put("Pen", new PenTool(canvasContainer, drawingCanvas, elementsPane));
         tools.put("Text", new TextTool(canvasContainer, elementsPane));
 
         // Set up mouse event handlers
@@ -63,6 +66,14 @@ public class ToolManager {
 
     public Tool getTool(String toolName) {
         return tools.get(toolName);
+    }
+
+    public Optional<List<Node>> getActiveToolSettings() {
+        if (activeTool != null) {
+            List<Node> settings = activeTool.getSettingsNodes();
+            return settings.isEmpty() ? Optional.empty() : Optional.of(settings);
+        }
+        return Optional.empty();
     }
 
     private void handleMousePressed(MouseEvent event) {

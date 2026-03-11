@@ -10,6 +10,7 @@ import com.drawboard.service.PreferencesService;
 import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
@@ -42,6 +43,7 @@ public class MainWindowController {
     @FXML private ToggleButton btnTextTool;
     @FXML private ToggleButton btnPenTool;
     @FXML private MenuItem menuDeleteNotebook;
+    @FXML private HBox toolSettingsContainer;
 
     private final NotebookService notebookService;
     private final PageService pageService;
@@ -713,6 +715,7 @@ public class MainWindowController {
     private void handleSelectTool() {
         if (canvasEditor != null) {
             canvasEditor.setActiveTool("Selection");
+            updateToolSettings("Selection");
             updateStatus("Selection tool active");
         }
     }
@@ -721,6 +724,7 @@ public class MainWindowController {
     private void handleTextTool() {
         if (canvasEditor != null) {
             canvasEditor.setActiveTool("Text");
+            updateToolSettings("Text");
             updateStatus("Text tool active - Click to add text");
         }
     }
@@ -729,7 +733,24 @@ public class MainWindowController {
     private void handlePenTool() {
         if (canvasEditor != null) {
             canvasEditor.setActiveTool("Pen");
+            updateToolSettings("Pen");
             updateStatus("Pen tool active - Draw on the canvas");
+        }
+    }
+
+    private void updateToolSettings(String toolName) {
+        if (toolSettingsContainer == null) {
+            return;
+        }
+
+        // Clear existing settings
+        toolSettingsContainer.getChildren().clear();
+
+        // Get settings from canvas editor's active tool
+        if (canvasEditor != null) {
+            canvasEditor.getCurrentToolSettings().ifPresent(settingsNodes -> {
+                toolSettingsContainer.getChildren().addAll(settingsNodes);
+            });
         }
     }
 

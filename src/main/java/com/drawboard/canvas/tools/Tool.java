@@ -1,6 +1,9 @@
 package com.drawboard.canvas.tools;
 
+import javafx.scene.Node;
 import javafx.scene.input.MouseEvent;
+
+import java.util.List;
 
 /**
  * Base interface for all canvas tools.
@@ -48,4 +51,12 @@ public interface Tool {
      * Get the tool name.
      */
     String getName();
+
+    /**
+     * Get tool-specific settings UI nodes to display in the toolbar.
+     * @return List of JavaFX nodes to display, or empty list if no settings.
+     */
+    default List<Node> getSettingsNodes() {
+        return List.of();
+    }
 }
