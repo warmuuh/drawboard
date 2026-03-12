@@ -68,10 +68,11 @@ public class DrawboardApplication extends Application {
 
         // Load FXML with controller factory
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/MainWindow.fxml"));
+        MainWindowController mainController = new MainWindowController(notebookService, pageService, preferencesService,
+            obsidianImportService, searchService, webrtcService);
         loader.setControllerFactory(clazz -> {
             if (clazz == MainWindowController.class) {
-                return new MainWindowController(notebookService, pageService, preferencesService,
-                    obsidianImportService, searchService, webrtcService);
+                return mainController;
             }
             throw new IllegalArgumentException("Unexpected controller class: " + clazz);
         });
@@ -80,6 +81,12 @@ public class DrawboardApplication extends Application {
         Scene scene = new Scene(root, 1200, 800);
 
         primaryStage.setScene(scene);
+
+        // Set up close handler to clean up share dialogs
+        primaryStage.setOnCloseRequest(event -> {
+            mainController.cleanup();
+        });
+
         primaryStage.show();
 
         log.info("Drawboard application started");

@@ -137,7 +137,13 @@ class PageRenderer {
         // Insert HTML content (preserves formatting)
         textDiv.innerHTML = htmlContent;
 
+        // Force rendering by setting opacity and triggering reflow
+        textDiv.style.opacity = '0';
         this.htmlLayer.appendChild(textDiv);
+
+        // Force reflow before making visible
+        void textDiv.offsetHeight;
+        textDiv.style.opacity = '1';
     }
 
     /**
@@ -254,6 +260,27 @@ class PageRenderer {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.images.clear();
         this.currentPage = null;
+    }
+
+    /**
+     * Force a reflow to ensure rendering happens even in background tabs.
+     * Triggers a layout recalculation by reading offsetHeight.
+     */
+    forceReflow() {
+        // Reading offsetHeight forces the browser to recalculate layout
+        void this.pageContainer.offsetHeight;
+
+        // Force repaint by toggling a transform
+        this.htmlLayer.style.transform = 'translateZ(0)';
+        requestAnimationFrame(() => {
+            this.htmlLayer.style.transform = '';
+        });
+
+        // Also force repaint on all text elements
+        const textElements = this.htmlLayer.querySelectorAll('.text-element');
+        textElements.forEach(el => {
+            void el.offsetHeight;
+        });
     }
 }
 

@@ -372,7 +372,7 @@ stun:stun.l.google.com:19302
 
 Default viewer URL (configurable):
 ```
-https://petermucha.github.io/drawboard/
+https://warmuuh.github.io/drawboard/
 ```
 
 **To change:**

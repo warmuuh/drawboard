@@ -66,7 +66,7 @@
 
 1. **Receive Share Link**
    - Someone will send you a link that starts with:
-   - `https://petermucha.github.io/drawboard/?offer=...`
+   - `https://warmuuh.github.io/drawboard/?offer=...`
 
 2. **Open Link in Browser**
    - Click the link or paste it into your browser

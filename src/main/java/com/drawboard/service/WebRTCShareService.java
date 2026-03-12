@@ -26,7 +26,7 @@ import java.util.concurrent.*;
 @Singleton
 public class WebRTCShareService {
     private static final Logger log = LoggerFactory.getLogger(WebRTCShareService.class);
-    private static final String DEFAULT_VIEWER_URL = "https://petermucha.github.io/drawboard/";
+    private static final String DEFAULT_VIEWER_URL = "https://warmuuh.github.io/drawboard/";
     private static final long UPDATE_DEBOUNCE_MS = 500;
 
     private final PageService pageService;
@@ -35,6 +35,8 @@ public class WebRTCShareService {
     private final Map<String, String> sessionIdToPageId = new ConcurrentHashMap<>();  // sessionId -> pageId
     private final Map<String, ScheduledFuture<?>> pendingUpdates = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+    private final Map<String, ScheduledFuture<?>> periodicUpdateTasks = new ConcurrentHashMap<>();
+    private final Map<String, String> lastPageHashes = new ConcurrentHashMap<>();  // pageId -> content hash
     private PeerConnectionFactory factory;
 
     public WebRTCShareService(PageService pageService, Jsonb jsonb) {
@@ -70,6 +72,9 @@ public class WebRTCShareService {
         activeSessions.clear();
         pendingUpdates.values().forEach(future -> future.cancel(false));
         pendingUpdates.clear();
+        periodicUpdateTasks.values().forEach(future -> future.cancel(false));
+        periodicUpdateTasks.clear();
+        lastPageHashes.clear();
         scheduler.shutdown();
         if (factory != null) {
             factory.dispose();
@@ -329,6 +334,7 @@ public class WebRTCShareService {
         PageShareSession session = activeSessions.remove(pageId);
         if (session != null) {
             sessionIdToPageId.remove(session.sessionId());
+            stopPeriodicUpdates(pageId);
             closeSession(session);
             log.info("Stopped sharing page: {}", pageId);
         }
@@ -374,8 +380,111 @@ public class WebRTCShareService {
 
             log.info("Sent initial page data for page {}", session.pageId());
 
+            // Start periodic updates to continuously stream changes
+            startPeriodicUpdates(session);
+
         } catch (Exception e) {
             log.error("Failed to send initial page data", e);
+        }
+    }
+
+    /**
+     * Start periodic page updates for continuous streaming.
+     * Checks for page changes every 500ms and sends updates only if content changed.
+     */
+    private void startPeriodicUpdates(PageShareSession session) {
+        String pageId = session.pageId();
+
+        // Cancel any existing periodic task
+        ScheduledFuture<?> existing = periodicUpdateTasks.get(pageId);
+        if (existing != null) {
+            existing.cancel(false);
+        }
+
+        log.info("Starting periodic updates for page {}", pageId);
+
+        // Initialize hash with current state
+        try {
+            Page page = pageService.getPage(session.notebookId(), session.chapterId(), pageId);
+            if (page != null) {
+                String initialHash = computePageHash(page);
+                lastPageHashes.put(pageId, initialHash);
+                log.debug("Initial page hash for {}: {}", pageId, initialHash);
+            }
+        } catch (Exception e) {
+            log.error("Failed to compute initial page hash", e);
+        }
+
+        // Schedule periodic check at 500ms intervals
+        ScheduledFuture<?> task = scheduler.scheduleAtFixedRate(() -> {
+            try {
+                if (!session.isConnected()) {
+                    log.debug("Session disconnected, stopping periodic updates for page {}", pageId);
+                    stopPeriodicUpdates(pageId);
+                    return;
+                }
+
+                // Load current page state
+                Page page = pageService.getPage(session.notebookId(), session.chapterId(), pageId);
+                if (page == null) {
+                    log.warn("Page not found during periodic update: {}", pageId);
+                    return;
+                }
+
+                // Compute hash of current page state
+                String currentHash = computePageHash(page);
+                String lastHash = lastPageHashes.get(pageId);
+
+                // Only send if content changed
+                if (!currentHash.equals(lastHash)) {
+                    log.debug("Page content changed (hash: {} -> {}), sending update", lastHash, currentHash);
+
+                    // Send update
+                    Map<String, Object> message = new HashMap<>();
+                    message.put("type", "page_update");
+                    message.put("page", page);
+
+                    String json = jsonb.toJson(message);
+                    sendMessage(session, json);
+
+                    // Update stored hash
+                    lastPageHashes.put(pageId, currentHash);
+                    log.trace("Sent periodic update for page {}", pageId);
+                } else {
+                    log.trace("Page content unchanged, skipping update for {}", pageId);
+                }
+
+            } catch (Exception e) {
+                log.error("Error during periodic update for page {}", pageId, e);
+            }
+        }, UPDATE_DEBOUNCE_MS, UPDATE_DEBOUNCE_MS, TimeUnit.MILLISECONDS);
+
+        periodicUpdateTasks.put(pageId, task);
+    }
+
+    /**
+     * Stop periodic updates for a page.
+     */
+    private void stopPeriodicUpdates(String pageId) {
+        ScheduledFuture<?> task = periodicUpdateTasks.remove(pageId);
+        if (task != null) {
+            task.cancel(false);
+            log.info("Stopped periodic updates for page {}", pageId);
+        }
+        lastPageHashes.remove(pageId);
+    }
+
+    /**
+     * Compute a hash of the page content for change detection.
+     * Uses a simple hash of the JSON representation.
+     */
+    private String computePageHash(Page page) {
+        try {
+            String json = jsonb.toJson(page);
+            return String.valueOf(json.hashCode());
+        } catch (Exception e) {
+            log.error("Failed to compute page hash", e);
+            return String.valueOf(System.currentTimeMillis()); // Fallback to always different
         }
     }
 

@@ -68,6 +68,7 @@ public class MainWindowController {
     private CanvasEditorController canvasEditor;
     private PauseTransition splitPaneSaveDebounce;
     private boolean isCollapsingPanes = false; // Guard against recursive expansion/collapse
+    private ShareDialogController shareDialogController; // Track active share dialog
 
     public MainWindowController(NotebookService notebookService, PageService pageService,
                                PreferencesService preferencesService,
@@ -769,8 +770,8 @@ public class MainWindowController {
             ShareOffer offer = webrtcService.createShareOffer(currentNotebookId, currentChapterId, pageId);
 
             // Show share dialog
-            ShareDialogController dialogController = new ShareDialogController(offer, webrtcService, pageId);
-            dialogController.show();
+            shareDialogController = new ShareDialogController(offer, webrtcService, pageId);
+            shareDialogController.show();
 
             updateStatus("Page sharing started");
 
@@ -992,6 +993,16 @@ public class MainWindowController {
         @Override
         public String toString() {
             return name;
+        }
+    }
+
+    /**
+     * Cleanup method called when the main window is closing.
+     * Closes any open share dialogs to allow the application to exit.
+     */
+    public void cleanup() {
+        if (shareDialogController != null && shareDialogController.getStage() != null) {
+            shareDialogController.getStage().close();
         }
     }
 }

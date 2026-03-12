@@ -7,9 +7,11 @@ class DrawboardViewerApp {
         this.webrtcClient = null;
         this.pageRenderer = null;
         this.currentZoom = 1.0;
+        this.pendingUpdate = false;
 
         this.initializeUI();
         this.initializeCanvas();
+        this.setupVisibilityHandler();
         this.checkForOffer();
     }
 
@@ -45,6 +47,23 @@ class DrawboardViewerApp {
     initializeCanvas() {
         const canvasWrapper = document.getElementById('canvasWrapper');
         this.pageRenderer = new PageRenderer(canvasWrapper);
+    }
+
+    /**
+     * Set up visibility change handler to force refresh when tab becomes visible.
+     */
+    setupVisibilityHandler() {
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && this.pendingUpdate) {
+                console.log('Tab became visible, forcing refresh');
+                // Force a full re-render when tab becomes visible
+                if (this.pageRenderer && this.pageRenderer.currentPage) {
+                    this.pageRenderer.renderPage(this.pageRenderer.currentPage);
+                    this.pageRenderer.forceReflow();
+                }
+                this.pendingUpdate = false;
+            }
+        });
     }
 
     /**
@@ -187,7 +206,20 @@ class DrawboardViewerApp {
     handlePageUpdate(page) {
         console.log('Received page update:', page);
         this.elements.statusText.textContent = `Viewing: ${page.name} (updated)`;
-        this.pageRenderer.renderPage(page);
+
+        // Mark that we have a pending update
+        if (document.hidden) {
+            this.pendingUpdate = true;
+            console.log('Tab hidden, update will be applied when visible');
+        }
+
+        // Use requestAnimationFrame to force render even when tab is not focused
+        requestAnimationFrame(() => {
+            this.pageRenderer.renderPage(page);
+
+            // Force a reflow to ensure the update is processed
+            this.pageRenderer.forceReflow();
+        });
     }
 
     /**

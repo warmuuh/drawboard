@@ -41,6 +41,10 @@ public class ShareDialogController {
     private Stage stage;
     private Timeline statusCheckTimeline;
 
+    public Stage getStage() {
+        return stage;
+    }
+
     public ShareDialogController(ShareOffer shareOffer, WebRTCShareService webrtcService, String pageId) {
         this.shareOffer = shareOffer;
         this.webrtcService = webrtcService;
@@ -68,7 +72,7 @@ public class ShareDialogController {
             stage = new Stage();
             stage.setTitle("Share Page");
             stage.setScene(scene);
-            stage.initModality(Modality.APPLICATION_MODAL);
+            stage.initModality(Modality.NONE); // Non-modal - allows editing while sharing
 
             // Stop status checking when dialog closes
             stage.setOnHidden(e -> stopStatusChecking());
