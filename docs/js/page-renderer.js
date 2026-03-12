@@ -37,7 +37,7 @@ class PageRenderer {
         this.htmlLayer.style.left = '0';
         this.htmlLayer.style.width = '100%';
         this.htmlLayer.style.height = '100%';
-        this.htmlLayer.style.pointerEvents = 'none'; // Read-only
+        this.htmlLayer.style.pointerEvents = 'auto'; // Allow text selection and interaction
 
         // Layer 1: Canvas for drawings
         this.canvas = document.createElement('canvas');
@@ -47,7 +47,7 @@ class PageRenderer {
         this.canvas.style.position = 'absolute';
         this.canvas.style.top = '0';
         this.canvas.style.left = '0';
-        this.canvas.style.pointerEvents = 'none'; // Read-only
+        this.canvas.style.pointerEvents = 'none'; // Transparent to mouse events - allows text selection
         this.ctx = this.canvas.getContext('2d');
 
         // Assemble layers
