@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drawboard Viewer</title>
+    <link rel="stylesheet" href="css/viewer.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Drawboard Viewer</h1>
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">Waiting for connection...</span>
+            </div>
+        </header>
+
+        <!-- Connection Section (shown initially) -->
+        <div class="connection-section" id="connectionSection">
+            <div class="card">
+                <h2>Connect to Drawboard</h2>
+                <p class="instructions">
+                    To view a shared page, the sender will provide you with a link. If you haven't opened the link yet,
+                    paste it below. Otherwise, the connection will start automatically.
+                </p>
+
+                <div class="step">
+                    <h3>Step 1: Connection Starting...</h3>
+                    <p id="offerStatus">Processing connection request...</p>
+                </div>
+
+                <div class="step">
+                    <h3>Step 2: Copy this Answer</h3>
+                    <p>Once the connection is established, copy the answer below and send it back to the sender:</p>
+                    <div class="answer-container">
+                        <textarea id="answerText" readonly placeholder="Answer will appear here..."></textarea>
+                        <button id="copyAnswerBtn" class="btn btn-primary" disabled>Copy Answer</button>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <h3>Step 3: Wait for Connection</h3>
+                    <p>After the sender pastes your answer, the page will load automatically.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Section (shown when connected) -->
+        <div class="canvas-section" id="canvasSection" style="display: none;">
+            <div class="canvas-controls">
+                <button id="zoomInBtn" class="btn btn-icon" title="Zoom In">+</button>
+                <button id="zoomOutBtn" class="btn btn-icon" title="Zoom Out">−</button>
+                <button id="resetZoomBtn" class="btn btn-icon" title="Reset Zoom">⟲</button>
+                <span class="zoom-level" id="zoomLevel">100%</span>
+            </div>
+            <div class="canvas-wrapper" id="canvasWrapper">
+                <!-- Page content will be rendered here as layered HTML/canvas -->
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Powered by <strong>Drawboard</strong> | Real-time WebRTC Sharing</p>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <script src="js/offer-decoder.js"></script>
+    <script src="js/page-renderer.js"></script>
+    <script src="js/webrtc-client.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

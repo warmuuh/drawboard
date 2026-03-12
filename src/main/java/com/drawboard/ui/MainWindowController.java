@@ -8,6 +8,8 @@ import com.drawboard.service.ObsidianImportService;
 import com.drawboard.service.PageService;
 import com.drawboard.service.PreferencesService;
 import com.drawboard.service.SearchService;
+import com.drawboard.service.WebRTCShareService;
+import com.drawboard.webrtc.ShareOffer;
 import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -44,6 +46,7 @@ public class MainWindowController {
     @FXML private Button btnNewPage;
     @FXML private Button btnNewNotebook;
     @FXML private Button btnSearch;
+    @FXML private Button btnSharePage;
     @FXML private SplitPane splitPane;
     @FXML private ToggleButton btnSelectTool;
     @FXML private ToggleButton btnTextTool;
@@ -57,6 +60,7 @@ public class MainWindowController {
     private final PreferencesService preferencesService;
     private final ObsidianImportService obsidianImportService;
     private final SearchService searchService;
+    private final WebRTCShareService webrtcService;
 
     private String currentNotebookId;
     private String currentChapterId;
@@ -68,12 +72,14 @@ public class MainWindowController {
     public MainWindowController(NotebookService notebookService, PageService pageService,
                                PreferencesService preferencesService,
                                ObsidianImportService obsidianImportService,
-                               SearchService searchService) {
+                               SearchService searchService,
+                               WebRTCShareService webrtcService) {
         this.notebookService = notebookService;
         this.pageService = pageService;
         this.preferencesService = preferencesService;
         this.obsidianImportService = obsidianImportService;
         this.searchService = searchService;
+        this.webrtcService = webrtcService;
     }
 
     @FXML
@@ -668,6 +674,9 @@ public class MainWindowController {
 
             // Hide placeholder when page is loaded
             placeholderLabel.setVisible(false);
+
+            // Enable share button when page is loaded
+            btnSharePage.setDisable(false);
         }
     }
 
@@ -676,6 +685,8 @@ public class MainWindowController {
             canvasEditor.clear();
             // Show placeholder when canvas is cleared
             placeholderLabel.setVisible(true);
+            // Disable share button when no page is loaded
+            btnSharePage.setDisable(true);
         }
     }
 
@@ -741,6 +752,31 @@ public class MainWindowController {
             canvasEditor.handlePaste();
         } else {
             updateStatus("No page loaded - cannot paste");
+        }
+    }
+
+    @FXML
+    private void handleSharePage() {
+        if (canvasEditor == null || !canvasEditor.hasPageLoaded()) {
+            showAlert("No Page", "Please open a page before sharing.");
+            return;
+        }
+
+        String pageId = canvasEditor.getCurrentPageId();
+
+        try {
+            // Create share offer
+            ShareOffer offer = webrtcService.createShareOffer(currentNotebookId, currentChapterId, pageId);
+
+            // Show share dialog
+            ShareDialogController dialogController = new ShareDialogController(offer, webrtcService, pageId);
+            dialogController.show();
+
+            updateStatus("Page sharing started");
+
+        } catch (Exception e) {
+            log.error("Failed to create share offer", e);
+            showAlert("Share Failed", "Failed to create share link: " + e.getMessage());
         }
     }
 
@@ -877,6 +913,14 @@ public class MainWindowController {
     private void showError(String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle("Error");
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private void showAlert(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();

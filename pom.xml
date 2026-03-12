@@ -34,6 +34,13 @@
             <version>${avaje.inject.version}</version>
         </dependency>
 
+        <!-- Jakarta Annotations for @PostConstruct, @PreDestroy -->
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+            <version>3.0.0</version>
+        </dependency>
+
         <!-- Avaje JsonB for JSON serialization -->
         <dependency>
             <groupId>io.avaje</groupId>
@@ -65,6 +72,13 @@
             <groupId>org.commonmark</groupId>
             <artifactId>commonmark-ext-gfm-tables</artifactId>
             <version>0.24.0</version>
+        </dependency>
+
+        <!-- WebRTC for Java -->
+        <dependency>
+            <groupId>dev.onvoid.webrtc</groupId>
+            <artifactId>webrtc-java</artifactId>
+            <version>0.14.0</version>
         </dependency>
 
         <!-- Logging -->

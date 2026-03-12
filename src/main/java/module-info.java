@@ -17,6 +17,9 @@ module com.drawboard {
     requires io.avaje.jsonb;
     requires io.avaje.jsonb.plugin;
 
+    // Jakarta Annotations
+    requires jakarta.annotation;
+
     // Jackson (for Obsidian import)
     requires com.fasterxml.jackson.databind;
 
@@ -24,6 +27,9 @@ module com.drawboard {
     requires org.commonmark;
     requires org.commonmark.ext.gfm.strikethrough;
     requires org.commonmark.ext.gfm.tables;
+
+    // WebRTC
+    requires webrtc.java;
 
     // Logging
     requires org.slf4j;
@@ -42,12 +48,14 @@ module com.drawboard {
     exports com.drawboard.canvas;
     exports com.drawboard.canvas.tools;
     exports com.drawboard.util;
+    exports com.drawboard.webrtc;
 
     // Open packages for JSON serialization
     opens com.drawboard.domain to io.avaje.jsonb;
     opens com.drawboard.domain.elements to io.avaje.jsonb;
     opens com.drawboard.domain.preferences to io.avaje.jsonb;
     opens com.drawboard.domain.search to io.avaje.jsonb;
+    opens com.drawboard.webrtc to io.avaje.jsonb;
 
     // Open packages for JavaFX FXML
     opens com.drawboard.ui to javafx.fxml;

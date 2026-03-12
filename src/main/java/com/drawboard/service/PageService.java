@@ -5,6 +5,7 @@ import com.drawboard.domain.Page;
 import com.drawboard.domain.elements.CanvasElement;
 import com.drawboard.domain.elements.ImageElement;
 import com.drawboard.storage.FileStorageService;
+import com.drawboard.webrtc.PageUpdateEvent;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 /**
  * Service for managing pages and canvas elements.
@@ -27,10 +30,43 @@ public class PageService {
 
     private final FileStorageService storage;
     private final NotebookService notebookService;
+    private final List<Consumer<PageUpdateEvent>> updateListeners = new CopyOnWriteArrayList<>();
 
     public PageService(FileStorageService storage, NotebookService notebookService) {
         this.storage = storage;
         this.notebookService = notebookService;
+    }
+
+    /**
+     * Add a listener that will be notified when pages are updated.
+     *
+     * @param listener The listener to add
+     */
+    public void addUpdateListener(Consumer<PageUpdateEvent> listener) {
+        updateListeners.add(listener);
+    }
+
+    /**
+     * Remove a previously registered update listener.
+     *
+     * @param listener The listener to remove
+     */
+    public void removeUpdateListener(Consumer<PageUpdateEvent> listener) {
+        updateListeners.remove(listener);
+    }
+
+    /**
+     * Notify all update listeners of a page change.
+     */
+    private void notifyUpdateListeners(String notebookId, String chapterId, String pageId, Page page) {
+        PageUpdateEvent event = new PageUpdateEvent(notebookId, chapterId, pageId, page);
+        for (Consumer<PageUpdateEvent> listener : updateListeners) {
+            try {
+                listener.accept(event);
+            } catch (Exception e) {
+                log.error("Error notifying update listener", e);
+            }
+        }
     }
 
     // ==================== Page Operations ====================
@@ -109,6 +145,7 @@ public class PageService {
 
     public void savePage(String notebookId, String chapterId, Page page) {
         storage.savePage(notebookId, chapterId, page);
+        notifyUpdateListeners(notebookId, chapterId, page.id(), page);
     }
 
     public void deletePage(String notebookId, String chapterId, String pageId) {
@@ -164,6 +201,7 @@ public class PageService {
         );
 
         storage.savePage(notebookId, chapterId, updatedPage);
+        notifyUpdateListeners(notebookId, chapterId, pageId, updatedPage);
         log.debug("Added element {} to page {}", element.id(), pageId);
     }
 
@@ -188,6 +226,7 @@ public class PageService {
         );
 
         storage.savePage(notebookId, chapterId, updatedPage);
+        notifyUpdateListeners(notebookId, chapterId, pageId, updatedPage);
         log.debug("Updated element {} on page {}", element.id(), pageId);
     }
 
@@ -224,6 +263,7 @@ public class PageService {
         );
 
         storage.savePage(notebookId, chapterId, updatedPage);
+        notifyUpdateListeners(notebookId, chapterId, pageId, updatedPage);
         log.debug("Deleted element {} from page {}", elementId, pageId);
     }
 

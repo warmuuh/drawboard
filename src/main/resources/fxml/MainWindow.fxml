@@ -55,6 +55,9 @@
                 <Button text="Search" fx:id="btnSearch" onAction="#handleSearch"
                         minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"
                         style="-fx-padding: 2;"/>
+                <Button text="Share" fx:id="btnSharePage" onAction="#handleSharePage" disable="true"
+                        minWidth="32" minHeight="32" maxWidth="32" maxHeight="32"
+                        style="-fx-padding: 2;"/>
                 <Separator orientation="VERTICAL"/>
                 <Label text="Tools:" style="-fx-padding: 0 10 0 10;"/>
                 <ToggleButton text="Select" fx:id="btnSelectTool" onAction="#handleSelectTool" selected="true"

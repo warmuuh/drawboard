@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      spacing="15" prefWidth="600" prefHeight="400"
+      style="-fx-padding: 20;">
+
+    <Label text="Share Page via WebRTC" style="-fx-font-size: 18; -fx-font-weight: bold;"/>
+
+    <Separator/>
+
+    <!-- Share URL Section -->
+    <VBox spacing="5">
+        <Label text="Step 1: Share this URL with viewers" style="-fx-font-weight: bold;"/>
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <TextField fx:id="shareUrlField" editable="false" HBox.hgrow="ALWAYS"
+                       style="-fx-font-family: monospace;"/>
+            <Button text="Copy" fx:id="btnCopyUrl" onAction="#handleCopyUrl"/>
+        </HBox>
+        <Label text="Viewers will open this URL in their browser to see your page in real-time."
+               style="-fx-font-size: 11; -fx-text-fill: gray;" wrapText="true"/>
+    </VBox>
+
+    <Separator/>
+
+    <!-- Answer Section -->
+    <VBox spacing="5" VBox.vgrow="ALWAYS">
+        <Label text="Step 2: Paste the answer from the viewer" style="-fx-font-weight: bold;"/>
+        <TextArea fx:id="answerTextArea" promptText="The viewer will show an answer - paste it here..."
+                  VBox.vgrow="ALWAYS" wrapText="true"
+                  style="-fx-font-family: monospace;"/>
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <Button text="Connect" fx:id="btnConnect" onAction="#handleConnect" defaultButton="true"/>
+            <Label fx:id="statusLabel" text="Waiting for connection..."/>
+        </HBox>
+    </VBox>
+
+    <Separator/>
+
+    <!-- Action Buttons -->
+    <HBox spacing="10" alignment="CENTER_RIGHT">
+        <Button text="Stop Sharing" fx:id="btnStopSharing" onAction="#handleStopSharing" disable="true"/>
+        <Button text="Close" fx:id="btnClose" onAction="#handleClose" cancelButton="true"/>
+    </HBox>
+
+</VBox>

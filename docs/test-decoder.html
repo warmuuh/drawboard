@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Offer Decoder</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 { color: #667eea; }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover { background: #5568d3; }
+        textarea, input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Offer Decoder Test</h1>
+
+    <div class="section">
+        <h2>Step 1: Test URL-safe Base64 Conversion</h2>
+        <p>Enter URL-safe Base64 string:</p>
+        <input type="text" id="urlSafeInput" placeholder="H4sIAAAAAAAA_..." />
+        <button onclick="testBase64Conversion()">Convert to Standard Base64</button>
+        <div id="base64Result" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 2: Test Full Offer Decoding</h2>
+        <p>Enter complete share URL:</p>
+        <input type="text" id="urlInput" placeholder="http://localhost:63342/drawboard/docs/index.html?offer=..." />
+        <button onclick="testOfferDecoding()">Decode Offer</button>
+        <div id="decodeResult" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 3: Generate Test Offer</h2>
+        <p>Enter test SDP:</p>
+        <textarea id="testSdp" rows="5" placeholder="v=0
+o=- 123 456 IN IP4 127.0.0.1
+s=-
+..."></textarea>
+        <button onclick="generateTestOffer()">Generate Encoded Offer</button>
+        <div id="generateResult" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 4: Test SDP Sanitization</h2>
+        <p>Enter SDP to check for unsupported lines:</p>
+        <textarea id="sdpCheck" rows="10" placeholder="Paste SDP answer here..."></textarea>
+        <button onclick="checkSdp()">Check SDP</button>
+        <div id="sdpCheckResult" class="result"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <script src="js/offer-decoder.js"></script>
+
+    <script>
+        function testBase64Conversion() {
+            const input = document.getElementById('urlSafeInput').value.trim();
+            const result = document.getElementById('base64Result');
+
+            if (!input) {
+                result.innerHTML = '<span class="error">Please enter a URL-safe Base64 string</span>';
+                return;
+            }
+
+            try {
+                // Convert URL-safe to standard
+                let standard = input.replace(/-/g, '+').replace(/_/g, '/');
+                while (standard.length % 4) {
+                    standard += '=';
+                }
+
+                result.innerHTML = `
+                    <strong>Input (URL-safe):</strong> ${input}<br/>
+                    <strong>Output (Standard):</strong> ${standard}<br/>
+                    <strong>Decode test:</strong> ${atob(standard).substring(0, 50)}...
+                `;
+                result.classList.add('success');
+            } catch (error) {
+                result.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+                result.classList.remove('success');
+            }
+        }
+
+        function testOfferDecoding() {
+            const url = document.getElementById('urlInput').value.trim();
+            const result = document.getElementById('decodeResult');
+
+            if (!url) {
+                result.innerHTML = '<span class="error">Please enter a URL</span>';
+                return;
+            }
+
+            try {
+                // Parse URL
+                const urlObj = new URL(url);
+                const offer = urlObj.searchParams.get('offer');
+
+                if (!offer) {
+                    result.innerHTML = '<span class="error">No offer parameter found in URL</span>';
+                    return;
+                }
+
+                // Decode
+                const urlDecoded = decodeURIComponent(offer);
+                let standardBase64 = urlDecoded.replace(/-/g, '+').replace(/_/g, '/');
+                while (standardBase64.length % 4) {
+                    standardBase64 += '=';
+                }
+
+                const base64Decoded = atob(standardBase64);
+                const compressed = new Uint8Array(base64Decoded.length);
+                for (let i = 0; i < base64Decoded.length; i++) {
+                    compressed[i] = base64Decoded.charCodeAt(i);
+                }
+
+                const decompressed = pako.inflate(compressed, { to: 'string' });
+
+                result.innerHTML = `
+                    <span class="success"><strong>✓ Successfully decoded!</strong></span><br/>
+                    <strong>Encoded length:</strong> ${offer.length} chars<br/>
+                    <strong>Decoded SDP:</strong><br/>${decompressed.substring(0, 500)}...
+                `;
+            } catch (error) {
+                result.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+                console.error(error);
+            }
+        }
+
+        function generateTestOffer() {
+            const sdp = document.getElementById('testSdp').value.trim();
+            const result = document.getElementById('generateResult');
+
+            if (!sdp) {
+                result.innerHTML = '<span class="error">Please enter test SDP</span>';
+                return;
+            }
+
+            try {
+                // Compress with GZIP
+                const compressed = pako.gzip(sdp);
+
+                // Base64 encode (URL-safe)
+                const base64 = btoa(String.fromCharCode.apply(null, compressed));
+                const urlSafe = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+
+                // Generate URL
+                const testUrl = `http://localhost:63342/drawboard/docs/index.html?offer=${encodeURIComponent(urlSafe)}`;
+
+                result.innerHTML = `
+                    <span class="success"><strong>✓ Generated test offer!</strong></span><br/>
+                    <strong>URL-safe Base64:</strong> ${urlSafe.substring(0, 100)}...<br/>
+                    <strong>Complete URL:</strong><br/>
+                    <textarea readonly rows="3">${testUrl}</textarea>
+                    <button onclick="navigator.clipboard.writeText('${testUrl}')">Copy URL</button>
+                `;
+            } catch (error) {
+                result.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+                console.error(error);
+            }
+        }
+
+        function checkSdp() {
+            const sdp = document.getElementById('sdpCheck').value.trim();
+            const result = document.getElementById('sdpCheckResult');
+
+            if (!sdp) {
+                result.innerHTML = '<span class="error">Please enter SDP to check</span>';
+                return;
+            }
+
+            try {
+                const lines = sdp.split(/\r?\n/);
+                const unsupported = [];
+                const sanitized = [];
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith('a=max-message-size:') ||
+                        trimmed.startsWith('a=sctp-port:')) {
+                        unsupported.push(line);
+                    } else {
+                        sanitized.push(line);
+                    }
+                }
+
+                if (unsupported.length === 0) {
+                    result.innerHTML = `
+                        <span class="success"><strong>✓ No unsupported lines found!</strong></span><br/>
+                        <strong>Total lines:</strong> ${lines.length}<br/>
+                        This SDP should work with webrtc-java.
+                    `;
+                } else {
+                    result.innerHTML = `
+                        <span class="error"><strong>⚠ Found ${unsupported.length} unsupported line(s):</strong></span><br/>
+                        ${unsupported.map(l => `<code>${l}</code>`).join('<br/>')}<br/><br/>
+                        <strong>These will be removed by the desktop app.</strong><br/>
+                        <strong>Original lines:</strong> ${lines.length}<br/>
+                        <strong>After sanitization:</strong> ${sanitized.length}<br/>
+                    `;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+            }
+        }
+
+        // Check URL on load
+        window.addEventListener('load', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('offer')) {
+                document.getElementById('urlInput').value = window.location.href;
+                testOfferDecoding();
+            }
+        });
+    </script>
+</body>
+</html>
