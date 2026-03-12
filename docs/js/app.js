@@ -217,8 +217,11 @@ class DrawboardViewerApp {
         requestAnimationFrame(() => {
             this.pageRenderer.renderPage(page);
 
-            // Force a reflow to ensure the update is processed
-            this.pageRenderer.forceReflow();
+            // Use a double requestAnimationFrame for better cross-browser support
+            // especially for Vivaldi which needs extra nudging
+            requestAnimationFrame(() => {
+                this.pageRenderer.forceReflow();
+            });
         });
     }
 

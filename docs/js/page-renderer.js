@@ -103,9 +103,15 @@ class PageRenderer {
         }
 
         // Render drawing elements to canvas
-        for (const element of drawingElements) {
-            this.renderDrawingElement(element);
-        }
+        // Use setTimeout to ensure canvas rendering happens in a separate task
+        // This helps with Vivaldi's rendering pipeline
+        setTimeout(() => {
+            for (const element of drawingElements) {
+                this.renderDrawingElement(element);
+            }
+            // Force canvas update
+            this.forceCanvasUpdate();
+        }, 0);
 
         console.log(`Rendered page: ${pageData.name} with ${sortedElements.length} elements`);
     }
@@ -285,6 +291,29 @@ class PageRenderer {
         const textElements = this.htmlLayer.querySelectorAll('.text-element');
         textElements.forEach(el => {
             void el.offsetHeight;
+        });
+
+        // Force canvas update for Vivaldi
+        this.forceCanvasUpdate();
+    }
+
+    /**
+     * Force canvas rendering update (especially needed for Vivaldi browser).
+     */
+    forceCanvasUpdate() {
+        // Save and restore canvas state to trigger re-render
+        this.ctx.save();
+        this.ctx.restore();
+
+        // Force a minimal draw operation to trigger GPU update
+        const imgData = this.ctx.getImageData(0, 0, 1, 1);
+        this.ctx.putImageData(imgData, 0, 0);
+
+        // Also try toggling canvas style to force repaint
+        const prevOpacity = this.canvas.style.opacity;
+        this.canvas.style.opacity = '0.999';
+        requestAnimationFrame(() => {
+            this.canvas.style.opacity = prevOpacity || '1';
         });
     }
 }
