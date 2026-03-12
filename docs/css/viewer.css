@@ -243,11 +243,6 @@ body {
 /* Page container with layered elements */
 .page-container {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    cursor: grab;
-}
-
-.page-container:active {
-    cursor: grabbing;
 }
 
 /* Text elements preserve HTML formatting */

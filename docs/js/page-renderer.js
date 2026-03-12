@@ -37,7 +37,6 @@ class PageRenderer {
         this.htmlLayer.style.left = '0';
         this.htmlLayer.style.width = '100%';
         this.htmlLayer.style.height = '100%';
-        this.htmlLayer.style.pointerEvents = 'auto'; // Allow text selection and interaction
 
         // Layer 1: Canvas for drawings
         this.canvas = document.createElement('canvas');
