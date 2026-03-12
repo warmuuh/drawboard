@@ -179,22 +179,25 @@ class PageRenderer {
      * @param {Object} element The drawing element
      */
     renderDrawingElement(element) {
-        const { paths } = element;
+        const { x, y, paths } = element;
 
         if (!paths || paths.length === 0) {
             return;
         }
 
+        // Render each path with the element's offset
         for (const path of paths) {
-            this.renderPath(path);
+            this.renderPath(path, x, y);
         }
     }
 
     /**
      * Render a single drawing path.
      * @param {Object} path The path to render
+     * @param {number} offsetX The x offset of the drawing element
+     * @param {number} offsetY The y offset of the drawing element
      */
-    renderPath(path) {
+    renderPath(path, offsetX = 0, offsetY = 0) {
         const { points, color, strokeWidth } = path;
 
         if (!points || points.length < 2) {
@@ -207,10 +210,12 @@ class PageRenderer {
         this.ctx.lineJoin = 'round';
 
         this.ctx.beginPath();
-        this.ctx.moveTo(points[0].x, points[0].y);
+        // Apply offset to first point
+        this.ctx.moveTo(points[0].x + offsetX, points[0].y + offsetY);
 
+        // Apply offset to all subsequent points
         for (let i = 1; i < points.length; i++) {
-            this.ctx.lineTo(points[i].x, points[i].y);
+            this.ctx.lineTo(points[i].x + offsetX, points[i].y + offsetY);
         }
 
         this.ctx.stroke();
