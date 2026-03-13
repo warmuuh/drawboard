@@ -9,7 +9,7 @@ import com.drawboard.service.PageService;
 import com.drawboard.service.PreferencesService;
 import com.drawboard.service.SearchService;
 import com.drawboard.service.WebRTCShareService;
-import com.drawboard.webrtc.ShareOffer;
+import com.drawboard.webrtc.ShareSession;
 import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -766,18 +766,18 @@ public class MainWindowController {
         String pageId = canvasEditor.getCurrentPageId();
 
         try {
-            // Create share offer
-            ShareOffer offer = webrtcService.createShareOffer(currentNotebookId, currentChapterId, pageId);
+            // Start sharing (returns ShareSession with peer ID)
+            ShareSession shareSession = webrtcService.startSharing(currentNotebookId, currentChapterId, pageId);
 
             // Show share dialog
-            shareDialogController = new ShareDialogController(offer, webrtcService, pageId);
+            shareDialogController = new ShareDialogController(shareSession, webrtcService, pageId);
             shareDialogController.show();
 
             updateStatus("Page sharing started");
 
         } catch (Exception e) {
-            log.error("Failed to create share offer", e);
-            showAlert("Share Failed", "Failed to create share link: " + e.getMessage());
+            log.error("Failed to start sharing", e);
+            showAlert("Share Failed", "Failed to start sharing: " + e.getMessage());
         }
     }
 

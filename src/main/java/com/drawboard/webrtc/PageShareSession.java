@@ -13,10 +13,11 @@ public class PageShareSession {
     private final String notebookId;
     private final String chapterId;
     private final String pageId;
-    private final RTCPeerConnection peerConnection;
+    private RTCPeerConnection peerConnection;
     private RTCDataChannel dataChannel;
     private boolean connected;
     private final Instant createdAt;
+    private String viewerPeerId;
 
     public PageShareSession(String sessionId, String notebookId, String chapterId,
                            String pageId, RTCPeerConnection peerConnection) {
@@ -67,5 +68,17 @@ public class PageShareSession {
 
     public Instant createdAt() {
         return createdAt;
+    }
+
+    public void setPeerConnection(RTCPeerConnection peerConnection) {
+        this.peerConnection = peerConnection;
+    }
+
+    public String viewerPeerId() {
+        return viewerPeerId;
+    }
+
+    public void setViewerPeerId(String viewerPeerId) {
+        this.viewerPeerId = viewerPeerId;
     }
 }

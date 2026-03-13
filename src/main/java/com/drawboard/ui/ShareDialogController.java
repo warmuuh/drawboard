@@ -1,7 +1,7 @@
 package com.drawboard.ui;
 
 import com.drawboard.service.WebRTCShareService;
-import com.drawboard.webrtc.ShareOffer;
+import com.drawboard.webrtc.ShareSession;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -21,48 +21,47 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 
 /**
- * Controller for the WebRTC page sharing dialog.
- * Displays share URL, accepts answer SDP, and shows connection status.
+ * Controller for the WebRTC page sharing dialog (PeerJS version).
+ * Displays share URL with peer ID and shows connection status.
+ * No manual copy-paste of SDP required!
  */
 public class ShareDialogController {
     private static final Logger log = LoggerFactory.getLogger(ShareDialogController.class);
 
     @FXML private TextField shareUrlField;
-    @FXML private TextArea answerTextArea;
+    @FXML private TextField peerIdField;
     @FXML private Button btnCopyUrl;
-    @FXML private Button btnConnect;
     @FXML private Button btnStopSharing;
     @FXML private Button btnClose;
     @FXML private Label statusLabel;
+    @FXML private ProgressIndicator progressIndicator;
 
-    private final ShareOffer shareOffer;
+    private final ShareSession shareSession;
     private final WebRTCShareService webrtcService;
     private final String pageId;
     private Stage stage;
     private Timeline statusCheckTimeline;
 
-    public Stage getStage() {
-        return stage;
-    }
-
-    public ShareDialogController(ShareOffer shareOffer, WebRTCShareService webrtcService, String pageId) {
-        this.shareOffer = shareOffer;
+    public ShareDialogController(ShareSession shareSession, WebRTCShareService webrtcService, String pageId) {
+        this.shareSession = shareSession;
         this.webrtcService = webrtcService;
         this.pageId = pageId;
     }
 
     @FXML
     public void initialize() {
-        // Display the share URL
-        shareUrlField.setText(shareOffer.shareUrl());
+        // Display share URL and peer ID
+        shareUrlField.setText(shareSession.shareUrl());
+        peerIdField.setText(shareSession.peerId());
+
+        // Start with waiting status
+        statusLabel.setText("Waiting for viewer to connect...");
+        progressIndicator.setVisible(true);
 
         // Set up status checking
         setupStatusChecking();
     }
 
-    /**
-     * Show the share dialog.
-     */
     public void show() {
         try {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/ShareDialog.fxml"));
@@ -72,9 +71,8 @@ public class ShareDialogController {
             stage = new Stage();
             stage.setTitle("Share Page");
             stage.setScene(scene);
-            stage.initModality(Modality.NONE); // Non-modal - allows editing while sharing
+            stage.initModality(Modality.NONE);
 
-            // Stop status checking when dialog closes
             stage.setOnHidden(e -> stopStatusChecking());
 
             stage.show();
@@ -88,55 +86,12 @@ public class ShareDialogController {
     private void handleCopyUrl() {
         Clipboard clipboard = Clipboard.getSystemClipboard();
         ClipboardContent content = new ClipboardContent();
-        content.putString(shareOffer.shareUrl());
+        content.putString(shareSession.shareUrl());
         clipboard.setContent(content);
 
-        // Visual feedback
         btnCopyUrl.setText("Copied!");
-        Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(2), e -> btnCopyUrl.setText("Copy")));
+        Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(2), e -> btnCopyUrl.setText("Copy URL")));
         timeline.play();
-    }
-
-    @FXML
-    private void handleConnect() {
-        String answer = answerTextArea.getText().trim();
-
-        if (answer.isEmpty()) {
-            showError("Please paste the answer from the viewer.");
-            return;
-        }
-
-        try {
-            statusLabel.setText("Connecting...");
-            btnConnect.setDisable(true);
-
-            // Process answer in background thread
-            new Thread(() -> {
-                try {
-                    webrtcService.processAnswer(pageId, answer);
-
-                    Platform.runLater(() -> {
-                        statusLabel.setText("Connected! Page is now being shared.");
-                        statusLabel.setStyle("-fx-text-fill: green;");
-                        btnStopSharing.setDisable(false);
-                        answerTextArea.setDisable(true);
-                    });
-
-                } catch (Exception e) {
-                    log.error("Failed to process answer", e);
-                    Platform.runLater(() -> {
-                        statusLabel.setText("Connection failed: " + e.getMessage());
-                        statusLabel.setStyle("-fx-text-fill: red;");
-                        btnConnect.setDisable(false);
-                    });
-                }
-            }).start();
-
-        } catch (Exception e) {
-            log.error("Failed to connect", e);
-            showError("Failed to connect: " + e.getMessage());
-            btnConnect.setDisable(false);
-        }
     }
 
     @FXML
@@ -144,10 +99,9 @@ public class ShareDialogController {
         try {
             webrtcService.stopSharing(pageId);
             statusLabel.setText("Sharing stopped.");
-            statusLabel.setStyle("-fx-text-fill: gray;");
+            progressIndicator.setVisible(false);
             btnStopSharing.setDisable(true);
 
-            // Close dialog after a brief delay
             Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(1), e -> stage.close()));
             timeline.play();
 
@@ -159,7 +113,6 @@ public class ShareDialogController {
 
     @FXML
     private void handleClose() {
-        // Ask for confirmation if currently sharing
         if (webrtcService.isSharing(pageId)) {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
             alert.setTitle("Stop Sharing?");
@@ -180,8 +133,9 @@ public class ShareDialogController {
     private void setupStatusChecking() {
         statusCheckTimeline = new Timeline(new KeyFrame(Duration.millis(500), e -> {
             if (webrtcService.isSharing(pageId)) {
-                statusLabel.setText("Connected - sharing page in real-time");
+                statusLabel.setText("Connected! Streaming page in real-time");
                 statusLabel.setStyle("-fx-text-fill: green;");
+                progressIndicator.setVisible(false);
                 btnStopSharing.setDisable(false);
             }
         }));
@@ -201,5 +155,9 @@ public class ShareDialogController {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    public Stage getStage() {
+        return stage;
     }
 }

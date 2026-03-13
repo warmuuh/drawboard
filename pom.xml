@@ -81,6 +81,13 @@
             <version>0.14.0</version>
         </dependency>
 
+        <!-- WebSocket client for PeerJS signaling -->
+        <dependency>
+            <groupId>org.java-websocket</groupId>
+            <artifactId>Java-WebSocket</artifactId>
+            <version>1.5.7</version>
+        </dependency>
+
         <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>

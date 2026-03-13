@@ -13,37 +13,19 @@
             <h1>Drawboard Viewer</h1>
             <div class="connection-status" id="connectionStatus">
                 <span class="status-dot" id="statusDot"></span>
-                <span id="statusText">Waiting for connection...</span>
+                <span id="statusText">Connecting...</span>
             </div>
         </header>
 
-        <!-- Connection Section (shown initially) -->
+        <!-- Auto-connecting section -->
         <div class="connection-section" id="connectionSection">
             <div class="card">
-                <h2>Connect to Drawboard</h2>
-                <p class="instructions">
-                    To view a shared page, the sender will provide you with a link. If you haven't opened the link yet,
-                    paste it below. Otherwise, the connection will start automatically.
-                </p>
-
-                <div class="step">
-                    <h3>Step 1: Connection Starting...</h3>
-                    <p id="offerStatus">Processing connection request...</p>
+                <h2>Connecting to Drawboard</h2>
+                <p id="connectionMessage">Establishing secure connection...</p>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
                 </div>
-
-                <div class="step">
-                    <h3>Step 2: Copy this Answer</h3>
-                    <p>Once the connection is established, copy the answer below and send it back to the sender:</p>
-                    <div class="answer-container">
-                        <textarea id="answerText" readonly placeholder="Answer will appear here..."></textarea>
-                        <button id="copyAnswerBtn" class="btn btn-primary" disabled>Copy Answer</button>
-                    </div>
-                </div>
-
-                <div class="step">
-                    <h3>Step 3: Wait for Connection</h3>
-                    <p>After the sender pastes your answer, the page will load automatically.</p>
-                </div>
+                <p class="hint">This happens automatically - no manual steps needed!</p>
             </div>
         </div>
 
@@ -56,7 +38,7 @@
                 <span class="zoom-level" id="zoomLevel">100%</span>
             </div>
             <div class="canvas-wrapper" id="canvasWrapper">
-                <!-- Page content will be rendered here as layered HTML/canvas -->
+                <!-- Page content will be rendered here -->
             </div>
         </div>
 
@@ -68,9 +50,11 @@
 
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-    <script src="js/offer-decoder.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"
+            integrity="sha512-XEKeWX+mI3Ov+tg2evDlVQFzVOIp4T8J3cNcCEPaEUGpxJV3eZaN8rHuvnFPvQpGJBHPmrozJDMpm2xcDvtmyQ=="
+            crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="js/peerjs-client.js"></script>
     <script src="js/page-renderer.js"></script>
-    <script src="js/webrtc-client.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

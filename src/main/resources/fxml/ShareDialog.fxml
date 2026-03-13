@@ -6,7 +6,7 @@
 
 <VBox xmlns="http://javafx.com/javafx"
       xmlns:fx="http://javafx.com/fxml"
-      spacing="15" prefWidth="600" prefHeight="400"
+      spacing="15" prefWidth="600" prefHeight="350"
       style="-fx-padding: 20;">
 
     <Label text="Share Page via WebRTC" style="-fx-font-size: 18; -fx-font-weight: bold;"/>
@@ -15,31 +15,36 @@
 
     <!-- Share URL Section -->
     <VBox spacing="5">
-        <Label text="Step 1: Share this URL with viewers" style="-fx-font-weight: bold;"/>
+        <Label text="Share this URL with viewers" style="-fx-font-weight: bold;"/>
         <HBox spacing="10" alignment="CENTER_LEFT">
             <TextField fx:id="shareUrlField" editable="false" HBox.hgrow="ALWAYS"
                        style="-fx-font-family: monospace;"/>
-            <Button text="Copy" fx:id="btnCopyUrl" onAction="#handleCopyUrl"/>
+            <Button text="Copy URL" fx:id="btnCopyUrl" onAction="#handleCopyUrl"/>
         </HBox>
-        <Label text="Viewers will open this URL in their browser to see your page in real-time."
+        <Label text="Viewers will automatically connect when they open this URL - no manual steps required!"
                style="-fx-font-size: 11; -fx-text-fill: gray;" wrapText="true"/>
     </VBox>
 
     <Separator/>
 
-    <!-- Answer Section -->
-    <VBox spacing="5" VBox.vgrow="ALWAYS">
-        <Label text="Step 2: Paste the answer from the viewer" style="-fx-font-weight: bold;"/>
-        <TextArea fx:id="answerTextArea" promptText="The viewer will show an answer - paste it here..."
-                  VBox.vgrow="ALWAYS" wrapText="true"
-                  style="-fx-font-family: monospace;"/>
+    <!-- Connection Status -->
+    <VBox spacing="8">
+        <Label text="Connection Status" style="-fx-font-weight: bold;"/>
         <HBox spacing="10" alignment="CENTER_LEFT">
-            <Button text="Connect" fx:id="btnConnect" onAction="#handleConnect" defaultButton="true"/>
-            <Label fx:id="statusLabel" text="Waiting for connection..."/>
+            <ProgressIndicator fx:id="progressIndicator" prefWidth="20" prefHeight="20"/>
+            <Label fx:id="statusLabel" text="Waiting for viewer to connect..." wrapText="true" HBox.hgrow="ALWAYS"/>
         </HBox>
     </VBox>
 
     <Separator/>
+
+    <!-- Peer ID (for debugging/advanced users) -->
+    <VBox spacing="5">
+        <Label text="Peer ID (for advanced users)" style="-fx-font-weight: bold; -fx-font-size: 10;"/>
+        <TextField fx:id="peerIdField" editable="false" style="-fx-font-family: monospace; -fx-font-size: 10;"/>
+    </VBox>
+
+    <Region VBox.vgrow="ALWAYS"/>
 
     <!-- Action Buttons -->
     <HBox spacing="10" alignment="CENTER_RIGHT">

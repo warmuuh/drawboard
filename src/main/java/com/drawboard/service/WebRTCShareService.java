@@ -5,7 +5,9 @@ import com.drawboard.domain.elements.CanvasElement;
 import com.drawboard.domain.elements.ImageElement;
 import com.drawboard.webrtc.PageShareSession;
 import com.drawboard.webrtc.PageUpdateEvent;
-import com.drawboard.webrtc.ShareOffer;
+import com.drawboard.webrtc.ShareSession;
+import com.drawboard.webrtc.SignalingOffer;
+import com.drawboard.webrtc.PeerJSWebSocketClient;
 import dev.onvoid.webrtc.*;
 import io.avaje.jsonb.Jsonb;
 import jakarta.annotation.PostConstruct;
@@ -38,6 +40,7 @@ public class WebRTCShareService {
     private final Map<String, ScheduledFuture<?>> periodicUpdateTasks = new ConcurrentHashMap<>();
     private final Map<String, String> lastPageHashes = new ConcurrentHashMap<>();  // pageId -> content hash
     private PeerConnectionFactory factory;
+    private PeerJSWebSocketClient signalingClient;
 
     public WebRTCShareService(PageService pageService, Jsonb jsonb) {
         this.pageService = pageService;
@@ -76,6 +79,11 @@ public class WebRTCShareService {
         periodicUpdateTasks.clear();
         lastPageHashes.clear();
         scheduler.shutdown();
+
+        if (signalingClient != null) {
+            signalingClient.close();
+        }
+
         if (factory != null) {
             factory.dispose();
         }
@@ -83,246 +91,189 @@ public class WebRTCShareService {
     }
 
     /**
-     * Create a WebRTC share offer for a page.
-     *
-     * @param notebookId The notebook ID
-     * @param chapterId The chapter ID
-     * @param pageId The page ID
-     * @return ShareOffer containing session ID, SDP, and share URL
+     * Start sharing a page and return peer ID for URL generation.
+     * The desktop app will wait for the viewer to connect.
      */
-    public ShareOffer createShareOffer(String notebookId, String chapterId, String pageId) {
-        try {
-            String sessionId = UUID.randomUUID().toString();
+    public ShareSession startSharing(String notebookId, String chapterId, String pageId) {
+        // Generate peer ID
+        String peerId = UUID.randomUUID().toString();
 
-            // Configure WebRTC with STUN server
+        // Create session (without peer connection yet - that comes when offer arrives)
+        PageShareSession session = new PageShareSession(peerId, notebookId, chapterId, pageId, null);
+        activeSessions.put(pageId, session);
+        sessionIdToPageId.put(peerId, pageId);
+
+        // Connect to PeerJS server via WebSocket
+        signalingClient = new PeerJSWebSocketClient(peerId, offer -> {
+            handleIncomingOffer(pageId, offer);
+        });
+
+        try {
+            if (!signalingClient.connectAndWait(10, TimeUnit.SECONDS)) {
+                throw new RuntimeException("Failed to connect to PeerJS server");
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Connection interrupted", e);
+        }
+
+        log.info("Started sharing page {} with peer ID {}", pageId, peerId);
+
+        String shareUrl = ShareSession.generateShareUrl(DEFAULT_VIEWER_URL, peerId);
+        return new ShareSession(peerId, shareUrl);
+    }
+
+    /**
+     * Handle incoming offer from viewer and create answer.
+     */
+    private void handleIncomingOffer(String pageId, SignalingOffer offer) {
+        log.info("Received offer from viewer {} for page {}", offer.fromPeerId(), pageId);
+
+        PageShareSession session = activeSessions.get(pageId);
+        if (session == null) {
+            log.warn("No session found for page: {}", pageId);
+            return;
+        }
+
+        try {
+            // Configure peer connection
             RTCConfiguration config = new RTCConfiguration();
             RTCIceServer stunServer = new RTCIceServer();
             stunServer.urls.add("stun:stun.l.google.com:19302");
             config.iceServers.add(stunServer);
 
-            // Latch to wait for ICE gathering completion
             CountDownLatch iceGatheringLatch = new CountDownLatch(1);
 
             // Create peer connection
             RTCPeerConnection peerConnection = factory.createPeerConnection(config, new PeerConnectionObserver() {
                 @Override
                 public void onIceCandidate(RTCIceCandidate candidate) {
-                    if (candidate != null && candidate.sdp != null) {
-                        log.debug("ICE candidate generated: {} ({})", candidate.sdp, candidate.sdpMid);
-                    } else {
-                        log.info("ICE gathering complete (null candidate received)");
+                    if (candidate == null) {
                         iceGatheringLatch.countDown();
                     }
                 }
 
                 @Override
                 public void onConnectionChange(RTCPeerConnectionState state) {
-                    log.info("Peer connection state changed: {}", state);
-                    String pid = sessionIdToPageId.get(sessionId);
-                    if (pid != null) {
-                        PageShareSession session = activeSessions.get(pid);
-                        if (session != null) {
-                            if (state == RTCPeerConnectionState.CONNECTED) {
-                                session.setConnected(true);
-                                log.info("Peer connection CONNECTED - waiting for data channel to open");
-                            } else if (state == RTCPeerConnectionState.FAILED) {
-                                log.error("Peer connection FAILED");
-                                session.setConnected(false);
-                            }
-                        }
+                    log.info("Connection state: {}", state);
+                    if (state == RTCPeerConnectionState.CONNECTED) {
+                        session.setConnected(true);
                     }
                 }
 
                 @Override
                 public void onDataChannel(RTCDataChannel dataChannel) {
                     log.info("Data channel received: {}", dataChannel.getLabel());
+                    session.setDataChannel(dataChannel);
+                    setupDataChannel(session, dataChannel);
                 }
             });
 
-            // Create data channel
-            RTCDataChannelInit channelInit = new RTCDataChannelInit();
-            channelInit.ordered = true;
-            RTCDataChannel dataChannel = peerConnection.createDataChannel("page-data", channelInit);
+            // Update session with peer connection
+            session.setPeerConnection(peerConnection);
+            session.setViewerPeerId(offer.fromPeerId());
 
-            // Set up data channel callbacks
-            dataChannel.registerObserver(new RTCDataChannelObserver() {
+            // Set remote description (OFFER from viewer)
+            RTCSessionDescription offerDesc = new RTCSessionDescription(RTCSdpType.OFFER, offer.sdp());
+            CountDownLatch offerLatch = new CountDownLatch(1);
+
+            peerConnection.setRemoteDescription(offerDesc, new SetSessionDescriptionObserver() {
                 @Override
-                public void onBufferedAmountChange(long previousAmount) {
-                    // Not needed
+                public void onSuccess() {
+                    log.info("Remote description (offer) set successfully");
+                    offerLatch.countDown();
                 }
 
                 @Override
-                public void onStateChange() {
-                    RTCDataChannelState state = dataChannel.getState();
-                    log.info("Data channel state changed to: {}", state);
-
-                    if (state == RTCDataChannelState.OPEN) {
-                        log.info("Data channel OPEN - sending initial page data");
-                        String pid = sessionIdToPageId.get(sessionId);
-                        if (pid != null) {
-                            PageShareSession session = activeSessions.get(pid);
-                            if (session != null) {
-                                session.setConnected(true);
-                                sendInitialPageData(session);
-                            } else {
-                                log.error("Session not found for pageId: {}", pid);
-                            }
-                        } else {
-                            log.error("PageId not found for sessionId: {}", sessionId);
-                        }
-                    } else if (state == RTCDataChannelState.CLOSED) {
-                        log.warn("Data channel CLOSED");
-                    } else if (state == RTCDataChannelState.CLOSING) {
-                        log.warn("Data channel CLOSING");
-                    }
-                }
-
-                @Override
-                public void onMessage(RTCDataChannelBuffer buffer) {
-                    // Viewer is read-only, ignore incoming messages
-                    log.debug("Received message from viewer (ignoring)");
+                public void onFailure(String error) {
+                    log.error("Failed to set remote description: {}", error);
+                    offerLatch.countDown();
                 }
             });
 
-            // Create session
-            PageShareSession session = new PageShareSession(sessionId, notebookId, chapterId, pageId, peerConnection);
-            session.setDataChannel(dataChannel);
-            activeSessions.put(pageId, session);
-            sessionIdToPageId.put(sessionId, pageId);
-            log.debug("Created session mapping: sessionId={} -> pageId={}", sessionId, pageId);
+            if (!offerLatch.await(5, TimeUnit.SECONDS)) {
+                throw new RuntimeException("Timeout setting remote description");
+            }
 
-            // Create offer
-            RTCOfferOptions offerOptions = new RTCOfferOptions();
-            CountDownLatch latch = new CountDownLatch(1);
-            RTCSessionDescription[] offerHolder = new RTCSessionDescription[1];
+            // Create ANSWER
+            RTCAnswerOptions answerOptions = new RTCAnswerOptions();
+            CountDownLatch answerLatch = new CountDownLatch(1);
+            RTCSessionDescription[] answerHolder = new RTCSessionDescription[1];
 
-            peerConnection.createOffer(offerOptions, new CreateSessionDescriptionObserver() {
+            peerConnection.createAnswer(answerOptions, new CreateSessionDescriptionObserver() {
                 @Override
-                public void onSuccess(RTCSessionDescription description) {
-                    peerConnection.setLocalDescription(description, new SetSessionDescriptionObserver() {
+                public void onSuccess(RTCSessionDescription answer) {
+                    peerConnection.setLocalDescription(answer, new SetSessionDescriptionObserver() {
                         @Override
                         public void onSuccess() {
-                            log.info("Local description set - ICE gathering will start");
-                            offerHolder[0] = description;
-                            latch.countDown();
+                            log.info("Local description (answer) set - waiting for ICE gathering");
+                            answerHolder[0] = answer;
+                            answerLatch.countDown();
                         }
 
                         @Override
                         public void onFailure(String error) {
                             log.error("Failed to set local description: {}", error);
-                            latch.countDown();
+                            answerLatch.countDown();
                         }
                     });
                 }
 
                 @Override
                 public void onFailure(String error) {
-                    log.error("Failed to create offer: {}", error);
-                    latch.countDown();
+                    log.error("Failed to create answer: {}", error);
+                    answerLatch.countDown();
                 }
             });
 
-            // Wait for offer creation (with timeout)
-            if (!latch.await(5, TimeUnit.SECONDS)) {
-                throw new RuntimeException("Timeout creating WebRTC offer");
+            if (!answerLatch.await(5, TimeUnit.SECONDS)) {
+                throw new RuntimeException("Timeout creating answer");
             }
 
-            if (offerHolder[0] == null) {
-                throw new RuntimeException("Failed to create WebRTC offer");
+            if (answerHolder[0] == null) {
+                throw new RuntimeException("Failed to create answer");
             }
 
-            log.info("Waiting for ICE gathering to complete (this may take 3 seconds)...");
-
-            // Wait for ICE gathering to complete (with longer timeout)
+            // Wait for ICE gathering
             if (!iceGatheringLatch.await(3, TimeUnit.SECONDS)) {
-                log.warn("Timeout waiting for ICE gathering after 3 seconds - proceeding anyway");
-            } else {
-                log.info("ICE gathering completed successfully");
+                log.warn("ICE gathering timeout - proceeding anyway");
             }
 
-            // Get the updated local description which should now include ICE candidates
-            RTCSessionDescription updatedDescription = peerConnection.getLocalDescription();
-            if (updatedDescription != null && updatedDescription.sdp != null) {
-                int candidateCount = countIceCandidates(updatedDescription.sdp);
-                log.info("Offer includes {} ICE candidate(s)", candidateCount);
+            // Get answer with ICE candidates
+            RTCSessionDescription finalAnswer = peerConnection.getLocalDescription();
+            String answerSdp = finalAnswer != null ? finalAnswer.sdp : answerHolder[0].sdp;
 
-                if (candidateCount > 0) {
-                    offerHolder[0] = updatedDescription;
-                    log.info("Using updated offer with ICE candidates");
-                } else {
-                    log.warn("No ICE candidates found in updated description - using original");
-                }
-            } else {
-                log.warn("Could not get updated local description - using original offer");
-            }
+            log.info("Sending answer to viewer {}", offer.fromPeerId());
 
-            String offerSdp = offerHolder[0].sdp;
-            if (offerSdp == null || offerSdp.trim().isEmpty()) {
-                throw new RuntimeException("Offer SDP is null or empty");
-            }
-
-            log.debug("Generated offer SDP (first 100 chars): {}", offerSdp.substring(0, Math.min(100, offerSdp.length())));
-
-            String shareUrl = ShareOffer.generateShareUrl(DEFAULT_VIEWER_URL, offerSdp);
-
-            log.info("Created share offer for page {} (session: {}), URL length: {} chars",
-                pageId, sessionId, shareUrl.length());
-
-            return new ShareOffer(sessionId, offerSdp, shareUrl);
+            // Send answer back via signaling
+            signalingClient.sendAnswer(offer.fromPeerId(), offer.connectionId(), answerSdp);
 
         } catch (Exception e) {
-            log.error("Failed to create share offer", e);
-            throw new RuntimeException("Failed to create share offer", e);
+            log.error("Failed to handle incoming offer", e);
         }
     }
 
-    /**
-     * Process answer SDP from the viewer.
-     *
-     * @param pageId The page ID
-     * @param answerSdp The answer SDP string
-     */
-    public void processAnswer(String pageId, String answerSdp) {
-        PageShareSession session = activeSessions.get(pageId);
-        if (session == null) {
-            log.warn("No active session found for page: {}", pageId);
-            throw new IllegalArgumentException("No active session for page: " + pageId);
-        }
+    private void setupDataChannel(PageShareSession session, RTCDataChannel dataChannel) {
+        dataChannel.registerObserver(new RTCDataChannelObserver() {
+            @Override
+            public void onStateChange() {
+                RTCDataChannelState state = dataChannel.getState();
+                log.info("Data channel state: {}", state);
 
-        try {
-            log.debug("Received answer SDP with {} lines", answerSdp.split("\n").length);
-
-            // Normalize line endings to CRLF (\r\n) as required by SDP spec
-            String normalizedSdp = normalizeLineEndings(answerSdp);
-
-            log.debug("Sanitized SDP has {} lines", normalizedSdp.split("\r\n").length);
-
-            RTCSessionDescription answer = new RTCSessionDescription(RTCSdpType.ANSWER, normalizedSdp);
-            CountDownLatch latch = new CountDownLatch(1);
-
-            session.peerConnection().setRemoteDescription(answer, new SetSessionDescriptionObserver() {
-                @Override
-                public void onSuccess() {
-                    log.info("Remote description set successfully for session {}", session.sessionId());
-                    latch.countDown();
+                if (state == RTCDataChannelState.OPEN) {
+                    log.info("Data channel OPEN - sending initial page data");
+                    session.setConnected(true);
+                    sendInitialPageData(session);
                 }
-
-                @Override
-                public void onFailure(String error) {
-                    log.error("Failed to set remote description: {}", error);
-                    latch.countDown();
-                }
-            });
-
-            // Wait for answer processing (with timeout)
-            if (!latch.await(5, TimeUnit.SECONDS)) {
-                throw new RuntimeException("Timeout processing answer");
             }
 
-        } catch (Exception e) {
-            log.error("Failed to process answer", e);
-            throw new RuntimeException("Failed to process answer", e);
-        }
+            @Override
+            public void onMessage(RTCDataChannelBuffer buffer) {
+                // Viewer is read-only
+            }
+
+            @Override
+            public void onBufferedAmountChange(long previousAmount) {}
+        });
     }
 
     /**

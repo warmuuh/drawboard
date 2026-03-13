@@ -31,6 +31,9 @@ module com.drawboard {
     // WebRTC
     requires webrtc.java;
 
+    // WebSocket client for PeerJS
+    requires org.java_websocket;
+
     // Logging
     requires org.slf4j;
     requires ch.qos.logback.classic;
