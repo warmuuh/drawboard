@@ -526,7 +526,7 @@ public class WebRTCShareService {
         try {
             byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
             ByteBuffer buffer = ByteBuffer.wrap(bytes);
-            RTCDataChannelBuffer dcBuffer = new RTCDataChannelBuffer(buffer, false);
+            RTCDataChannelBuffer dcBuffer = new RTCDataChannelBuffer(buffer, true);  // true = binary message
             session.dataChannel().send(dcBuffer);
         } catch (Exception e) {
             log.error("Failed to send message via data channel", e);
