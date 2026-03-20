@@ -70,24 +70,60 @@ public class WebRTCShareService {
 
     @PreDestroy
     public void shutdown() {
-        // Stop all active sessions
+        log.info("WebRTC share service shutdown starting");
+
+        // Close signaling client first to prevent new connections
+        if (signalingClient != null) {
+            try {
+                signalingClient.close();
+                signalingClient = null;
+            } catch (Exception e) {
+                log.warn("Error closing signaling client", e);
+            }
+        }
+
+        // Cancel all scheduled tasks before closing sessions
+        periodicUpdateTasks.values().forEach(future -> future.cancel(true));
+        periodicUpdateTasks.clear();
+        pendingUpdates.values().forEach(future -> future.cancel(true));
+        pendingUpdates.clear();
+        lastPageHashes.clear();
+
+        // Shutdown scheduler and wait for tasks to complete
+        scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+                scheduler.awaitTermination(1, TimeUnit.SECONDS);
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+
+        // Close all peer connections (this includes delays for cleanup)
         activeSessions.values().forEach(this::closeSession);
         activeSessions.clear();
-        pendingUpdates.values().forEach(future -> future.cancel(false));
-        pendingUpdates.clear();
-        periodicUpdateTasks.values().forEach(future -> future.cancel(false));
-        periodicUpdateTasks.clear();
-        lastPageHashes.clear();
-        scheduler.shutdown();
+        sessionIdToPageId.clear();
 
-        if (signalingClient != null) {
-            signalingClient.close();
+        // Additional delay to ensure all native threads have detached
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
 
+        // Dispose factory last - only after all peer connections are closed
         if (factory != null) {
-            factory.dispose();
+            try {
+                factory.dispose();
+                factory = null;
+            } catch (Exception e) {
+                log.warn("Error disposing WebRTC factory (may be harmless)", e);
+            }
         }
-        log.info("WebRTC share service shutdown");
+
+        log.info("WebRTC share service shutdown complete");
     }
 
     /**
@@ -536,10 +572,22 @@ public class WebRTCShareService {
     private void closeSession(PageShareSession session) {
         try {
             if (session.dataChannel() != null) {
-                session.dataChannel().close();
+                try {
+                    session.dataChannel().close();
+                } catch (Exception e) {
+                    log.warn("Error closing data channel", e);
+                }
             }
             if (session.peerConnection() != null) {
-                session.peerConnection().close();
+                try {
+                    session.peerConnection().close();
+                    // Give peer connection time to cleanup native resources
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (Exception e) {
+                    log.warn("Error closing peer connection", e);
+                }
             }
         } catch (Exception e) {
             log.error("Error closing session", e);
