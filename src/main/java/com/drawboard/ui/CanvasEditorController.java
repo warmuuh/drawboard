@@ -37,6 +37,7 @@ public class CanvasEditorController {
     private String currentChapterId;
     private String currentPageId;
     private String backgroundColor;
+    private Runnable onToolSettingsChanged; // Callback to notify UI to refresh toolbar
 
     public CanvasEditorController(PageService pageService, PreferencesService preferencesService, Pane canvasContainer) {
         this.pageService = pageService;
@@ -48,6 +49,9 @@ public class CanvasEditorController {
 
         // Set up image data loader
         setupImageDataLoader();
+
+        // Set up tool settings change listener
+        setupToolSettingsListener();
     }
 
     private void setupElementListeners() {
@@ -92,6 +96,14 @@ public class CanvasEditorController {
                 return pageService.getImageData(currentNotebookId, currentChapterId, currentPageId, filename);
             }
             return null;
+        });
+    }
+
+    private void setupToolSettingsListener() {
+        canvasManager.setOnToolSettingsChanged(toolName -> {
+            if (onToolSettingsChanged != null) {
+                onToolSettingsChanged.run();
+            }
         });
     }
 
@@ -266,5 +278,12 @@ public class CanvasEditorController {
     public void setBackgroundColor(String backgroundColor) {
         this.backgroundColor = backgroundColor;
         canvasManager.setBackgroundColor(backgroundColor);
+    }
+
+    /**
+     * Set callback for when tool settings change and toolbar needs refresh.
+     */
+    public void setOnToolSettingsChanged(Runnable callback) {
+        this.onToolSettingsChanged = callback;
     }
 }

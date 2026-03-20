@@ -88,6 +88,22 @@ public class MainWindowController {
         // Initialize canvas editor
         canvasEditor = new CanvasEditorController(pageService, preferencesService, canvasArea);
 
+        // Set up callback to refresh toolbar when tool settings change
+        canvasEditor.setOnToolSettingsChanged(() -> {
+            javafx.application.Platform.runLater(() -> {
+                // Determine which tool is active and refresh its settings
+                if (btnTextTool.isSelected()) {
+                    updateToolSettings("Text");
+                } else if (btnSelectTool.isSelected()) {
+                    updateToolSettings("Selection");
+                } else if (btnPenTool.isSelected()) {
+                    updateToolSettings("Pen");
+                } else if (btnHighlighterTool.isSelected()) {
+                    updateToolSettings("Highlighter");
+                }
+            });
+        });
+
         setupIcons();
         setupNotebookSelector();
         setupToolButtons();

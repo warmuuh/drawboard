@@ -175,6 +175,8 @@ public class CanvasManager {
         });
     }
 
+    private Consumer<String> onToolSettingsChanged; // Callback when tool settings need refresh
+
     private void setupToolListeners() {
         // Text tool listener
         TextTool textTool = (TextTool) toolManager.getTool("Text");
@@ -182,6 +184,13 @@ public class CanvasManager {
             textTool.setOnTextElementCreated(element -> {
                 if (onTextElementAdded != null) {
                     onTextElementAdded.accept(element);
+                }
+            });
+
+            // Listen for formatting settings changes
+            textTool.setOnSettingsChanged(() -> {
+                if (onToolSettingsChanged != null) {
+                    onToolSettingsChanged.accept("Text");
                 }
             });
         }
@@ -318,6 +327,15 @@ public class CanvasManager {
         javafx.scene.Node node = textRenderer.render(element);
         elementNodes.put(element.id(), node);
         elementsPane.getChildren().add(node);
+
+        // Register WebView with TextTool for formatting controls
+        if (node instanceof javafx.scene.web.WebView webView) {
+            TextTool textTool = (TextTool) toolManager.getTool("Text");
+            if (textTool != null) {
+                textTool.registerWebView(webView);
+            }
+        }
+
         log.debug("Rendered text element at ({}, {})", element.x(), element.y());
     }
 
@@ -414,6 +432,14 @@ public class CanvasManager {
             }
             case DrawingElement de -> drawingRenderer.render(de);
         };
+
+        // Register WebView with TextTool for formatting controls
+        if (node instanceof javafx.scene.web.WebView webView) {
+            TextTool textTool = (TextTool) toolManager.getTool("Text");
+            if (textTool != null) {
+                textTool.registerWebView(webView);
+            }
+        }
 
         // If it's a new text element with empty content, focus it for immediate editing and select it
         if (element instanceof TextElement te && (te.htmlContent() == null || te.htmlContent().isEmpty())) {
@@ -574,6 +600,13 @@ public class CanvasManager {
 
     public void setOnElementDeleted(Consumer<String> listener) {
         this.onElementDeleted = listener;
+    }
+
+    /**
+     * Set callback for when tool settings change and UI needs refresh.
+     */
+    public void setOnToolSettingsChanged(Consumer<String> listener) {
+        this.onToolSettingsChanged = listener;
     }
 
     /**
