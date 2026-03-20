@@ -87,6 +87,9 @@ public class CanvasManager {
         // Set up WebView click listener for selection support
         setupWebViewClickListener();
 
+        // Set up height change listener for auto-growing text boxes
+        setupHeightChangeListener();
+
         // Initialize tool manager with overlay canvas for active drawing
         this.toolManager = new ToolManager(canvasContainer, elementsPane, overlayCanvas);
 
@@ -131,6 +134,44 @@ public class CanvasManager {
                 selectionTool.selectNode(webView);
                 log.debug("Selected WebView via click handler");
             }
+        });
+    }
+
+    private void setupHeightChangeListener() {
+        textRenderer.setOnHeightChanged((elementId, newHeight) -> {
+            if (currentPage == null) return;
+
+            // Find the element and create an updated version with new height
+            currentPage.elements().stream()
+                .filter(e -> e.id().equals(elementId) && e instanceof TextElement)
+                .findFirst()
+                .ifPresent(element -> {
+                    TextElement textElement = (TextElement) element;
+                    TextElement updated = new TextElement(
+                        textElement.id(),
+                        textElement.x(),
+                        textElement.y(),
+                        textElement.width(),
+                        newHeight,
+                        textElement.htmlContent(),
+                        textElement.zIndex()
+                    );
+
+                    if (onElementUpdated != null) {
+                        onElementUpdated.accept(updated);
+                    }
+
+                    // Update selection border and handles if this element is selected
+                    // But DON'T re-select (which would steal focus)
+                    SelectionTool selectionTool = (SelectionTool) toolManager.getTool("Selection");
+                    if (selectionTool != null) {
+                        javafx.scene.Node node = elementNodes.get(elementId);
+                        if (node != null && selectionTool.getSelectedNode() == node) {
+                            // Just update the visual selection borders/handles without re-selecting
+                            selectionTool.updateSelectionVisuals();
+                        }
+                    }
+                });
         });
     }
 

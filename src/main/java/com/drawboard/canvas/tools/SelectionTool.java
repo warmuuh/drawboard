@@ -246,6 +246,11 @@ public class SelectionTool extends AbstractTool {
         if (selectedNode instanceof javafx.scene.web.WebView webView) {
             webView.setPrefWidth(newWidth);
             webView.setPrefHeight(newHeight);
+            // Also update min/max to allow manual resizing (width is locked for content but not for user resize)
+            webView.setMinWidth(newWidth);
+            webView.setMaxWidth(newWidth);
+            webView.setMinHeight(newHeight);
+            webView.setMaxHeight(newHeight);
         } else if (selectedNode instanceof javafx.scene.image.ImageView imageView) {
             imageView.setFitWidth(newWidth);
             imageView.setFitHeight(newHeight);
@@ -764,6 +769,21 @@ public class SelectionTool extends AbstractTool {
 
     public void clearSelection() {
         deselectAllNodes();
+    }
+
+    /**
+     * Update the visual selection indicators (border and handles) without changing selection or focus.
+     * Used when the selected element's size changes.
+     */
+    public void updateSelectionVisuals() {
+        if (selectedNode != null) {
+            // Update selection border for single selection
+            if (selectionBorders.containsKey(selectedNode)) {
+                updateSelectionBorderForNode(selectedNode);
+            }
+            // Update resize handles
+            updateResizeHandles();
+        }
     }
 
     public void setOnElementMoved(java.util.function.BiConsumer<Node, javafx.geometry.Point2D> listener) {

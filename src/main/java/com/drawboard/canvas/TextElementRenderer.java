@@ -15,6 +15,7 @@ public class TextElementRenderer {
     private BiConsumer<String, String> onContentChanged;
     private String backgroundColor = "#FFFACD"; // Default light yellow
     private java.util.function.Consumer<WebView> onWebViewClicked;
+    private java.util.function.BiConsumer<String, Double> onHeightChanged; // elementId, newHeight
 
     public Node render(TextElement element) {
         WebView webView = new WebView();
@@ -34,11 +35,14 @@ public class TextElementRenderer {
             if (newDoc != null) {
                 webView.getEngine().executeScript("document.body.contentEditable = 'true';");
 
-                // Disable scrollbars
+                // Disable scrollbars completely
                 webView.getEngine().executeScript("""
-                    document.body.style.overflow = 'auto';
-                    document.documentElement.style.overflow = 'auto';
+                    document.body.style.overflow = 'hidden';
+                    document.documentElement.style.overflow = 'hidden';
                     """);
+
+                // Set up auto-resize based on content height
+                setupAutoResize(webView, element.id());
 
                 // Listen for focus loss to save changes
                 webView.focusedProperty().addListener((obsFocus, wasFocused, isNowFocused) -> {
@@ -88,6 +92,70 @@ public class TextElementRenderer {
         return webView;
     }
 
+    private void setupAutoResize(WebView webView, String elementId) {
+        // Make sure width is fixed (not auto-growing)
+        webView.setMinWidth(webView.getPrefWidth());
+        webView.setMaxWidth(webView.getPrefWidth());
+
+        // Set up mutation observer to detect content changes
+        webView.getEngine().executeScript("""
+            var observer = new MutationObserver(function() {
+                // Force a reflow to get accurate height
+                document.body.offsetHeight;
+                // Get the actual content height using offsetHeight which is more reliable
+                var height = document.body.offsetHeight;
+                // Store it so Java can read it
+                window.contentHeight = height;
+            });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                characterData: true
+            });
+            // Initial height
+            window.contentHeight = document.body.offsetHeight;
+            """);
+
+        // Poll for height changes (less frequently to reduce flicker)
+        javafx.animation.Timeline timeline = new javafx.animation.Timeline(
+            new javafx.animation.KeyFrame(
+                javafx.util.Duration.millis(200),
+                event -> {
+                    try {
+                        Object heightObj = webView.getEngine().executeScript("window.contentHeight");
+                        if (heightObj instanceof Number) {
+                            double contentHeight = ((Number) heightObj).doubleValue();
+                            double minHeight = 40; // Minimum height
+                            // Add 16px padding (8px top + 8px bottom from body padding)
+                            double newHeight = Math.max(minHeight, contentHeight);
+
+                            // Only resize if height changed significantly (more than 3px to avoid micro-adjustments)
+                            if (Math.abs(webView.getPrefHeight() - newHeight) > 3) {
+                                webView.setPrefHeight(newHeight);
+                                webView.setMinHeight(newHeight);
+                                webView.setMaxHeight(newHeight);
+                                if (onHeightChanged != null) {
+                                    onHeightChanged.accept(elementId, newHeight);
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        // Ignore errors during height check
+                    }
+                }
+            )
+        );
+        timeline.setCycleCount(javafx.animation.Timeline.INDEFINITE);
+        timeline.play();
+
+        // Stop timeline when WebView is removed from scene
+        webView.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene == null) {
+                timeline.stop();
+            }
+        });
+    }
+
     private void saveContent(WebView webView, String elementId) {
         try {
             String content = (String) webView.getEngine().executeScript(
@@ -109,6 +177,10 @@ public class TextElementRenderer {
         this.onWebViewClicked = listener;
     }
 
+    public void setOnHeightChanged(java.util.function.BiConsumer<String, Double> listener) {
+        this.onHeightChanged = listener;
+    }
+
     public void setBackgroundColor(String backgroundColor) {
         this.backgroundColor = backgroundColor;
     }
@@ -120,6 +192,9 @@ public class TextElementRenderer {
             <html>
             <head>
                 <style>
+                    * {
+                        box-sizing: border-box;
+                    }
                     html, body {
                         margin: 0;
                         padding: 8px;
@@ -127,6 +202,10 @@ public class TextElementRenderer {
                         font-size: 14px;
                         color: #333;
                         background: %s;
+                        width: 100%%;
+                        min-height: 24px;
+                        word-wrap: break-word;
+                        overflow-wrap: break-word;
                     }
                     p { margin: 0 0 8px 0; }
                     h1 { font-size: 24px; margin: 0 0 12px 0; }
