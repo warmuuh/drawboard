@@ -18,6 +18,7 @@ public class TextTool extends AbstractTool {
     private static final Logger log = LoggerFactory.getLogger(TextTool.class);
 
     private Consumer<TextElement> onTextElementCreated;
+    private SelectionTool selectionTool;
 
     private static final double DEFAULT_WIDTH = 300;
     private static final double DEFAULT_HEIGHT = 100;
@@ -26,14 +27,33 @@ public class TextTool extends AbstractTool {
         super(canvasContainer, elementsPane);
     }
 
+    public void setSelectionTool(SelectionTool selectionTool) {
+        this.selectionTool = selectionTool;
+    }
+
     @Override
     protected void handleMousePressed(MouseEvent event) {
+        double translateX = elementsPane.getTranslateX();
+        double translateY = elementsPane.getTranslateY();
+        log.debug("TextTool handleMousePressed at ({}, {}) with translate ({}, {})",
+            event.getX(), event.getY(), translateX, translateY);
 
         // Check if clicking on an existing text element
         javafx.scene.Node clickedNode = findTextNodeAt(event.getX(), event.getY());
+        log.debug("findTextNodeAt returned: {}", clickedNode);
 
         if (clickedNode instanceof javafx.scene.web.WebView webView) {
-            // Clicking on existing WebView - focus it and fire a new mouse event
+            // Clicking on existing WebView - select it and focus it for editing
+
+            // Select the node to show blue border and resize handles
+            if (selectionTool != null) {
+                log.debug("Selecting WebView node via SelectionTool");
+                selectionTool.selectNode(webView);
+            } else {
+                log.warn("SelectionTool is null - cannot select node");
+            }
+
+            // Focus the WebView for text editing
             webView.requestFocus();
 
             // Calculate position relative to WebView
@@ -63,23 +83,28 @@ public class TextTool extends AbstractTool {
 
             webView.fireEvent(newEvent);
 
-            log.debug("Fired mouse event to WebView at local ({}, {})", localPoint.getX(), localPoint.getY());
+            log.debug("Selected and fired mouse event to WebView at local ({}, {})", localPoint.getX(), localPoint.getY());
             event.consume();
             return;
         }
 
         // Create new text element at click position with empty content
+        // Adjust for canvas translation (already calculated above)
+        double adjustedX = event.getX() - translateX;
+        double adjustedY = event.getY() - translateY;
+
         TextElement element = new TextElement(
             UUID.randomUUID().toString(),
-            event.getX(),
-            event.getY(),
+            adjustedX,
+            adjustedY,
             DEFAULT_WIDTH,
             DEFAULT_HEIGHT,
             "",
             0  // Default z-index for text
         );
 
-        log.debug("Created text element at ({}, {})", event.getX(), event.getY());
+        log.debug("Created text element at ({}, {}) with translate ({}, {})",
+            adjustedX, adjustedY, translateX, translateY);
 
         // Notify listener
         if (onTextElementCreated != null) {
@@ -91,6 +116,15 @@ public class TextTool extends AbstractTool {
 
     private javafx.scene.Node findTextNodeAt(double x, double y) {
         // Find text nodes (WebView) at the given coordinates
+        // Account for canvas translation
+        double translateX = elementsPane.getTranslateX();
+        double translateY = elementsPane.getTranslateY();
+        double adjustedX = x - translateX;
+        double adjustedY = y - translateY;
+
+        log.debug("findTextNodeAt: click at ({}, {}), adjusted to ({}, {})",
+            x, y, adjustedX, adjustedY);
+
         var children = elementsPane.getChildren();
 
         for (int i = children.size() - 1; i >= 0; i--) {
@@ -98,12 +132,14 @@ public class TextTool extends AbstractTool {
 
             // Only interested in WebView nodes (text elements)
             if (node instanceof javafx.scene.web.WebView) {
-                if (node.contains(node.parentToLocal(x, y))) {
+                if (node.contains(node.parentToLocal(adjustedX, adjustedY))) {
+                    log.debug("Found WebView at layoutX={}, layoutY={}", node.getLayoutX(), node.getLayoutY());
                     return node;
                 }
             }
         }
 
+        log.debug("No WebView found at this position");
         return null;
     }
 

@@ -52,7 +52,7 @@ public class SelectionTool extends AbstractTool {
 
     private enum ResizeHandle {
         NONE, TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT,
-        TOP, BOTTOM, LEFT, RIGHT
+        TOP, BOTTOM, LEFT, RIGHT, MOVE
     }
 
     private enum SelectionMode {
@@ -337,7 +337,8 @@ public class SelectionTool extends AbstractTool {
 
     @Override
     public void deactivate() {
-        deselectAllNodes();
+        // Don't clear selection when deactivating - other tools may want to keep it visible
+        // deselectAllNodes();
         canvasContainer.setCursor(Cursor.DEFAULT);
         canvasContainer.setOnKeyPressed(null); // Remove key handler
         canvasContainer.setOnMouseClicked(null); // Remove background click handler
@@ -492,22 +493,30 @@ public class SelectionTool extends AbstractTool {
         return null;
     }
 
-    private void selectNode(Node node) {
-        if (selectedNode == node) {
-            return; // Already selected
+    /**
+     * Programmatically select a specific node.
+     * Used by other tools (e.g., TextTool) to show selection UI when clicking on elements.
+     */
+    public void selectNode(Node node) {
+        if (node == null) {
+            return;
         }
 
-        deselectNode();
+        // Clear existing selection
+        deselectAllNodes();
 
+        // Select the node using the multi-selection approach
+        selectedNodes.add(node);
         selectedNode = node;
-        createSelectionBorder();
 
-        // Don't call toFront() - it breaks z-index ordering
-        // Just ensure selection border is on top
-        selectionBorder.toFront();
+        // Show selection border and handles
+        showSelectionBorder(node);
+        createResizeHandles();
 
-        // Request focus on container so it can receive key events
+        // Request focus so we can receive key events
         canvasContainer.requestFocus();
+
+        log.debug("Programmatically selected node");
     }
 
     private void deselectNode() {
@@ -560,12 +569,105 @@ public class SelectionTool extends AbstractTool {
             // Set cursor based on handle position
             handleRect.setCursor(getCursorForHandle(handle));
 
+            // Add direct mouse handlers to each handle so they work regardless of active tool
+            setupHandleMouseHandlers(handleRect, handle);
+
             resizeHandles.getChildren().add(handleRect);
         }
+
+        // Create move handle (larger, positioned at top-right area)
+        Rectangle moveHandle = new Rectangle(16, 16, Color.DODGERBLUE);
+        moveHandle.setStroke(Color.WHITE);
+        moveHandle.setStrokeWidth(2);
+        moveHandle.setUserData(ResizeHandle.MOVE);
+        moveHandle.setCursor(Cursor.MOVE);
+        moveHandle.setArcWidth(4);
+        moveHandle.setArcHeight(4);
+
+        setupHandleMouseHandlers(moveHandle, ResizeHandle.MOVE);
+        resizeHandles.getChildren().add(moveHandle);
 
         updateResizeHandles();
         elementsPane.getChildren().add(resizeHandles);
         resizeHandles.toFront(); // Ensure handles are on top
+    }
+
+    private void setupHandleMouseHandlers(Rectangle handleRect, ResizeHandle handle) {
+        final double[] dragStart = new double[4]; // x, y, nodeX, nodeY
+
+        handleRect.setOnMousePressed(event -> {
+            if (!event.isPrimaryButtonDown() || selectedNode == null) {
+                return;
+            }
+
+            // Store initial state
+            dragStart[0] = event.getSceneX();
+            dragStart[1] = event.getSceneY();
+            dragStart[2] = selectedNode.getLayoutX();
+            dragStart[3] = selectedNode.getLayoutY();
+
+            if (handle != ResizeHandle.MOVE) {
+                // For resize handles, store initial size
+                if (selectedNode instanceof javafx.scene.web.WebView webView) {
+                    nodeStartWidth = webView.getPrefWidth();
+                    nodeStartHeight = webView.getPrefHeight();
+                } else if (selectedNode instanceof javafx.scene.image.ImageView imageView) {
+                    nodeStartWidth = imageView.getFitWidth();
+                    nodeStartHeight = imageView.getFitHeight();
+                }
+            }
+
+            nodeStartX = dragStart[2];
+            nodeStartY = dragStart[3];
+            activeResizeHandle = handle;
+
+            event.consume();
+        });
+
+        handleRect.setOnMouseDragged(event -> {
+            if (activeResizeHandle == ResizeHandle.NONE || selectedNode == null) {
+                return;
+            }
+
+            double deltaX = event.getSceneX() - dragStart[0];
+            double deltaY = event.getSceneY() - dragStart[1];
+
+            if (handle == ResizeHandle.MOVE) {
+                // Move the entire element
+                double newX = nodeStartX + deltaX;
+                double newY = nodeStartY + deltaY;
+                selectedNode.setLayoutX(newX);
+                selectedNode.setLayoutY(newY);
+            } else {
+                // Resize the element
+                handleResize(deltaX, deltaY);
+            }
+
+            // Update selection border and handles
+            if (selectionBorders.containsKey(selectedNode)) {
+                updateSelectionBorderForNode(selectedNode);
+            }
+            updateResizeHandles();
+
+            event.consume();
+        });
+
+        handleRect.setOnMouseReleased(event -> {
+            if (activeResizeHandle != ResizeHandle.NONE && selectedNode != null) {
+                double newX = selectedNode.getLayoutX();
+                double newY = selectedNode.getLayoutY();
+
+                log.debug("{} node to ({}, {})", handle == ResizeHandle.MOVE ? "Moved" : "Resized", newX, newY);
+
+                // Notify listener to save the new position/size
+                if (onElementMoved != null) {
+                    onElementMoved.accept(selectedNode, new javafx.geometry.Point2D(newX, newY));
+                }
+            }
+
+            activeResizeHandle = ResizeHandle.NONE;
+            event.consume();
+        });
     }
 
     private Cursor getCursorForHandle(ResizeHandle handle) {
@@ -574,6 +676,7 @@ public class SelectionTool extends AbstractTool {
             case TOP_RIGHT, BOTTOM_LEFT -> Cursor.NE_RESIZE;
             case TOP, BOTTOM -> Cursor.V_RESIZE;
             case LEFT, RIGHT -> Cursor.H_RESIZE;
+            case MOVE -> Cursor.MOVE;
             default -> Cursor.DEFAULT;
         };
     }
@@ -631,6 +734,12 @@ public class SelectionTool extends AbstractTool {
             handleRect.setX(hx);
             handleRect.setY(hy);
         }
+
+        // Position the move handle in the top-right area (outside the border)
+        Rectangle moveHandle = (Rectangle) resizeHandles.getChildren().get(i);
+        double moveHandleSize = 16;
+        moveHandle.setX(x + width + 4); // 4px spacing from border
+        moveHandle.setY(y - moveHandleSize - 4); // Above the top border
     }
 
     private ResizeHandle getResizeHandleAt(double x, double y) {

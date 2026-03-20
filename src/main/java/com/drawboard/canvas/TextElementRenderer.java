@@ -14,6 +14,7 @@ public class TextElementRenderer {
 
     private BiConsumer<String, String> onContentChanged;
     private String backgroundColor = "#FFFACD"; // Default light yellow
+    private java.util.function.Consumer<WebView> onWebViewClicked;
 
     public Node render(TextElement element) {
         WebView webView = new WebView();
@@ -71,6 +72,19 @@ public class TextElementRenderer {
             }
         });
 
+        // Add click handler to notify when WebView is clicked (for selection support)
+        // Use event filter to catch the event before WebView processes it
+        webView.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, event -> {
+            if (onWebViewClicked != null && event.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                // Check if the click is actually on the visible WebView
+                // by converting to scene coordinates and checking bounds
+                javafx.geometry.Bounds boundsInScene = webView.localToScene(webView.getBoundsInLocal());
+                if (boundsInScene.contains(event.getSceneX(), event.getSceneY())) {
+                    onWebViewClicked.accept(webView);
+                }
+            }
+        });
+
         return webView;
     }
 
@@ -89,6 +103,10 @@ public class TextElementRenderer {
 
     public void setOnContentChanged(BiConsumer<String, String> listener) {
         this.onContentChanged = listener;
+    }
+
+    public void setOnWebViewClicked(java.util.function.Consumer<WebView> listener) {
+        this.onWebViewClicked = listener;
     }
 
     public void setBackgroundColor(String backgroundColor) {

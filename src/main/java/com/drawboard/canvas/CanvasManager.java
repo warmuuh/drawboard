@@ -84,6 +84,9 @@ public class CanvasManager {
         // Set up text content change listener
         setupTextContentListener();
 
+        // Set up WebView click listener for selection support
+        setupWebViewClickListener();
+
         // Initialize tool manager with overlay canvas for active drawing
         this.toolManager = new ToolManager(canvasContainer, elementsPane, overlayCanvas);
 
@@ -117,6 +120,17 @@ public class CanvasManager {
                         onElementUpdated.accept(updated);
                     }
                 });
+        });
+    }
+
+    private void setupWebViewClickListener() {
+        textRenderer.setOnWebViewClicked(webView -> {
+            // When a WebView is clicked, select it using the SelectionTool
+            SelectionTool selectionTool = (SelectionTool) toolManager.getTool("Selection");
+            if (selectionTool != null) {
+                selectionTool.selectNode(webView);
+                log.debug("Selected WebView via click handler");
+            }
         });
     }
 
@@ -360,10 +374,17 @@ public class CanvasManager {
             case DrawingElement de -> drawingRenderer.render(de);
         };
 
-        // If it's a new text element with empty content, focus it for immediate editing
+        // If it's a new text element with empty content, focus it for immediate editing and select it
         if (element instanceof TextElement te && (te.htmlContent() == null || te.htmlContent().isEmpty())) {
             if (node instanceof javafx.scene.web.WebView webView) {
                 javafx.application.Platform.runLater(() -> {
+                    // Select the node first to show border and handles
+                    SelectionTool selectionTool = (SelectionTool) toolManager.getTool("Selection");
+                    if (selectionTool != null) {
+                        selectionTool.selectNode(webView);
+                    }
+
+                    // Then focus for editing
                     webView.requestFocus();
                     // Focus the contentEditable body
                     try {

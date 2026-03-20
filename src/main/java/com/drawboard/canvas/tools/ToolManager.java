@@ -25,10 +25,16 @@ public class ToolManager {
         this.tools = new HashMap<>();
 
         // Register available tools
-        tools.put("Selection", new SelectionTool(canvasContainer, elementsPane));
+        SelectionTool selectionTool = new SelectionTool(canvasContainer, elementsPane);
+        TextTool textTool = new TextTool(canvasContainer, elementsPane);
+
+        tools.put("Selection", selectionTool);
         tools.put("Pen", new PenTool(canvasContainer, drawingCanvas, elementsPane));
         tools.put("Highlighter", new HighlighterTool(canvasContainer, drawingCanvas, elementsPane));
-        tools.put("Text", new TextTool(canvasContainer, elementsPane));
+        tools.put("Text", textTool);
+
+        // Wire up cross-tool dependencies
+        textTool.setSelectionTool(selectionTool);
 
         // Set up mouse event handlers
         setupMouseHandlers(canvasContainer);
