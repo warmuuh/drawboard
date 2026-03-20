@@ -427,12 +427,19 @@ public class SelectionTool extends AbstractTool {
     }
 
     private void deselectAllNodes() {
-        // Check if we need to remove focus from WebView
+        // Check if we need to remove focus from WebView and check for empty text nodes
         boolean hadWebView = false;
+        java.util.List<Node> emptyTextNodes = new java.util.ArrayList<>();
+
         for (Node node : selectedNodes) {
-            if (node instanceof javafx.scene.web.WebView) {
+            if (node instanceof javafx.scene.web.WebView webView) {
                 hadWebView = true;
-                break;
+
+                // Check if the WebView is empty
+                if (isWebViewEmpty(webView)) {
+                    emptyTextNodes.add(node);
+                    log.debug("Found empty text node to delete");
+                }
             }
         }
 
@@ -452,11 +459,30 @@ public class SelectionTool extends AbstractTool {
         // Clear primary selection
         selectedNode = null;
 
+        // Delete empty text nodes
+        for (Node node : emptyTextNodes) {
+            if (onElementDeleted != null) {
+                onElementDeleted.accept(node);
+                log.debug("Deleted empty text node");
+            }
+        }
+
         // Only request focus if we had a WebView selected (to remove its internal focus)
         // or if explicitly needed for paste operations
         if (hadWebView) {
             canvasContainer.requestFocus();
             log.debug("Removed focus from WebView");
+        }
+    }
+
+    private boolean isWebViewEmpty(javafx.scene.web.WebView webView) {
+        try {
+            String content = (String) webView.getEngine().executeScript("document.body.textContent || ''");
+            // Check if content is null, empty, or only whitespace
+            return content == null || content.trim().isEmpty();
+        } catch (Exception e) {
+            log.debug("Could not check if WebView is empty: {}", e.getMessage());
+            return false;
         }
     }
 
